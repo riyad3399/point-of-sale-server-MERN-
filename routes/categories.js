@@ -35,7 +35,7 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// PUT - A category
+// PATCH - A category
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
   const updateData = req.body;
