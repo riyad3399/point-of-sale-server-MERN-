@@ -1,25 +1,26 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const dotenv = require('dotenv');
+const dotenv = require("dotenv");
 const productRoutes = require("./routes/products");
 const categoryRoutes = require("./routes/categories");
-const customerRoutes = require("./routes/customer")
+const customerRoutes = require("./routes/customer");
+const invioceRoutes = require("./routes/invoice");
 require("colors");
-
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-dotenv.config()
+dotenv.config();
 app.use(cors());
 app.use(express.json()); // JSON data accept করবে
 
 // Routes
 app.use("/pos", productRoutes);
 app.use("/category", categoryRoutes);
-app.use("/customer", customerRoutes)
+app.use("/customer", customerRoutes);
+app.use("/invoice", invioceRoutes);
 
 // MongoDB connect
 mongoose
