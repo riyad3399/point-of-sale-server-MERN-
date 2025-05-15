@@ -61,7 +61,7 @@ router.patch("/:id", async (req, res) => {
       return res.status(404).json({ message: "Customer not found" });
     }
 
-    res.json(updatedCustomer);
+    res.status(200).json(updatedCustomer);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }

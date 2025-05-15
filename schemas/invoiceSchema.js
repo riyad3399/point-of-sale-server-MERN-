@@ -6,9 +6,7 @@ const invoiceSchema = new mongoose.Schema(
       type: Number,
       required: true,
       unique: true,
-      default: function () {
-        return Math.floor(1000 + Math.random() * 9000); // 4-digit number
-      },
+      default: () => Math.floor(1000 + Math.random() * 9000),
     },
     saleSystem: {
       type: String,
@@ -17,31 +15,43 @@ const invoiceSchema = new mongoose.Schema(
       default: "retailSale",
     },
     customer: {
-      name: String,
-      phone: String,
+      name: { type: String, required: true },
+      phone: { type: String, required: true },
     },
-    paymentMethod: String,
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "bkash", "nagad", "bank", "card"],
+      default: "cash",
+    },
     items: [
       {
-        name: String,
-        quantity: Number,
-        price: Number,
-        total: Number,
+        name: { type: String, required: true },
+        quantity: { type: Number, required: true },
+        price: { type: Number, required: true },
+        total: { type: Number, required: true },
       },
     ],
     totals: {
-      total: Number,
-      discount: Number,
-      payable: Number,
-      paid: Number,
-      due: Number,
-      change: Number,
+      total: { type: Number, default: 0 },
+      discount: { type: Number, default: 0 },
+      payable: { type: Number, default: 0 },
+      paid: { type: Number, default: 0 },
+      due: { type: Number, default: 0 },
+      change: { type: Number, default: 0 },
     },
-    dueDate: {
-      type: Date,
-    },
+    dueDate: Date,
+    paymentDetails: [
+      {
+        currentPaymentDate: { type: Date, default: Date.now },
+        discount: { type: Number, default: 0 },
+        paid: { type: Number, required: true },
+        nextDueAmount: { type: Number, default: 0 },
+        nextDueDate: Date,
+      },
+    ],
   },
   { timestamps: true }
 );
+
 
 module.exports = mongoose.model("Invoice", invoiceSchema);

@@ -26,7 +26,7 @@ router.post("/", async (req, res) => {
 
     const newInvoice = new Invoice({
       transactionId,
-      saleSystem, 
+      saleSystem,
       customer,
       paymentMethod,
       items,
@@ -37,7 +37,6 @@ router.post("/", async (req, res) => {
       },
       dueDate: due > 0 ? dueDate : null,
     });
-
 
     const savedInvoice = await newInvoice.save();
     res.status(201).json(savedInvoice);
@@ -50,13 +49,13 @@ router.post("/", async (req, res) => {
 // GET - All invoice
 router.get("/", async (req, res) => {
   try {
-    const invoice = await Invoice.find()
-    res.status(200).json(invoice)
-    
+    const invoice = await Invoice.find();
+    res.status(200).json(invoice);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch invoice" });
   }
-})
+});
+
 
 // GET all wholesale invoices
 router.get("/wholesale", async (req, res) => {
@@ -79,5 +78,80 @@ router.get("/retailsale", async (req, res) => {
   }
 });
 
+// GET - A invoice
+router.get("/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const singleInvoice = await Invoice.findById(id);
+
+    if (!singleInvoice) {
+      return res.status(404).json({ message: "Invoice not found!" });
+    }
+    res.status(200).json(singleInvoice);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch invoice" });
+  }
+});
+
+// UPDATE - A invoice
+router.put("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { paid, discount = 0, nextDueAmount = 0, nextDueDate } = req.body;
+
+    // Validate input
+    if (typeof paid !== "number" || paid < 0) {
+      return res.status(400).json({ message: "Invalid paid amount" });
+    }
+
+    const invoice = await Invoice.findById(id);
+    if (!invoice) {
+      return res.status(404).json({ message: "Invoice not found" });
+    }
+
+    // Update totals
+    invoice.totals.paid += paid;
+    invoice.totals.discount += discount;
+    invoice.totals.due = nextDueAmount;
+
+    // Push paymentDetails entry
+    invoice.paymentDetails.push({
+      currentPaymentDate: new Date(),
+      discount,
+      paid,
+      nextDueAmount,
+      nextDueDate,
+    });
+
+    await invoice.save();
+
+    res.status(200).json({
+      message: "Payment updated successfully",
+      invoice,
+    });
+  } catch (err) {
+    console.error("Payment update error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// DELETE - A invoice
+router.delete("/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    const deletedInvoice = await Invoice.findByIdAndDelete(id);
+
+    if (!deletedInvoice) {
+      return res.status(404).json({ message: "Invoice not found!" });
+    }
+
+    res.status(200).json({
+      message: "Invoice deleted successfully!",
+      invoice: deletedInvoice,
+    });
+  } catch (err) {
+    res.status(500).json({ message: "Something went wrong!" });
+  }
+});
 
 module.exports = router;
