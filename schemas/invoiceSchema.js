@@ -25,6 +25,11 @@ const invoiceSchema = new mongoose.Schema(
     },
     items: [
       {
+        productId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Product",
+          required: true,
+        },
         name: { type: String, required: true },
         quantity: { type: Number, required: true },
         price: { type: Number, required: true },
@@ -52,6 +57,5 @@ const invoiceSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 module.exports = mongoose.model("Invoice", invoiceSchema);

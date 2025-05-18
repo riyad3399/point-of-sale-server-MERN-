@@ -17,7 +17,7 @@ app.use(cors());
 app.use(express.json()); // JSON data accept করবে
 
 // Routes
-app.use("/pos", productRoutes);
+app.use("/product", productRoutes);
 app.use("/category", categoryRoutes);
 app.use("/customer", customerRoutes);
 app.use("/invoice", invioceRoutes);

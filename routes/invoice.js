@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Invoice = require("../schemas/invoiceSchema");
+const Product = require("../schemas/productSchema");
 
 // Create a  invoice
 router.post("/", async (req, res) => {
@@ -24,6 +25,21 @@ router.post("/", async (req, res) => {
       change = totals.paid - totals.payable;
     }
 
+    for (const item of items) {
+      const { productId, quantity } = item;
+
+      if (!productId || !quantity) {
+        console.error("Missing productId or quantity in item:", item);
+        continue;
+      }
+
+      await Product.findByIdAndUpdate(productId, {
+        $inc: { quantity: -quantity },
+      });
+    }
+      
+
+    // Step 3: Invoice তৈরি করো
     const newInvoice = new Invoice({
       transactionId,
       saleSystem,
@@ -39,6 +55,7 @@ router.post("/", async (req, res) => {
     });
 
     const savedInvoice = await newInvoice.save();
+
     res.status(201).json(savedInvoice);
   } catch (err) {
     console.error("Invoice creation error:", err);
@@ -55,7 +72,6 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch invoice" });
   }
 });
-
 
 // GET all wholesale invoices
 router.get("/wholesale", async (req, res) => {
@@ -90,6 +106,22 @@ router.get("/:id", async (req, res) => {
     res.status(200).json(singleInvoice);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch invoice" });
+  }
+});
+
+// GET - customer payment details
+router.get("/:id/payment-details", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const invoice = await Invoice.findOne({ transactionId: Number(id) }).select(
+      "paymentDetails"
+    );
+    if (!invoice) {
+      return res.status(404).json({ message: "Payment Details not found" });
+    }
+    res.status(200).json(invoice.paymentDetails);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch payment details" });
   }
 });
 
