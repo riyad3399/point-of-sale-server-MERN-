@@ -66,19 +66,19 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// PUT - update a product
-router.put("/:id", upload.single("photo"), async (req, res) => {
+// PATCH - update a product
+router.patch("/:id", upload.single("photo"), async (req, res) => {
   try {
-    const updates = req.body;
+    const updates = { ...req.body };
 
     if (req.file) {
-      console.log("Photo file received:", req.file.originalname);
-      updates.photo = req.file.originalname; 
+      
+      updates.photo = req.file.buffer;
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
-      updates,
+      { $set: updates },
       { new: true, runValidators: true }
     );
 
@@ -92,6 +92,7 @@ router.put("/:id", upload.single("photo"), async (req, res) => {
     res.status(500).json({ message: "Failed to update product" });
   }
 });
+
 
 
 // GET - All products

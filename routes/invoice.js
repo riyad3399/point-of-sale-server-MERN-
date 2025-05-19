@@ -113,17 +113,25 @@ router.get("/:id", async (req, res) => {
 router.get("/:id/payment-details", async (req, res) => {
   try {
     const { id } = req.params;
+
     const invoice = await Invoice.findOne({ transactionId: Number(id) }).select(
-      "paymentDetails"
+      "paymentDetails customer"
     );
+
     if (!invoice) {
       return res.status(404).json({ message: "Payment Details not found" });
     }
-    res.status(200).json(invoice.paymentDetails);
+
+    res.status(200).json({
+      paymentDetails: invoice.paymentDetails,
+      customer: invoice.customer,
+    });
   } catch (err) {
+    console.error("Error fetching payment details:", err);
     res.status(500).json({ message: "Failed to fetch payment details" });
   }
 });
+
 
 // UPDATE - A invoice
 router.put("/:id", async (req, res) => {
