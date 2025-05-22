@@ -37,7 +37,6 @@ router.post("/", async (req, res) => {
         $inc: { quantity: -quantity },
       });
     }
-      
 
     // Step 3: Invoice তৈরি করো
     const newInvoice = new Invoice({
@@ -94,8 +93,56 @@ router.get("/retailsale", async (req, res) => {
   }
 });
 
+
+// GET - Report Statement
+router.get("/report", async (req, res) => {
+  try {
+    const { fromDate, toDate } = req.query;
+
+    if (!fromDate || !toDate) {
+      return res
+        .status(400)
+        .json({ error: "Both fromDate and toDate are required." });
+    }
+
+    const from = new Date(`${fromDate}T00:00:00.000Z`);
+    const to = new Date(`${toDate}T23:59:59.999Z`);
+
+    const result = await Invoice.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: from, $lte: to },
+        },
+      },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.name",
+          totalQuantity: { $sum: "$items.quantity" },
+          totalAmount: { $sum: "$items.total" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          name: "$_id",
+          totalQuantity: 1,
+          totalAmount: 1,
+        },
+      },
+
+    ]);
+    res.json(result);
+  } catch (err) {
+    console.error("Item-wise report error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 // GET - A invoice
 router.get("/:id", async (req, res) => {
+  console.log("hello world");
   try {
     const id = req.params.id;
     const singleInvoice = await Invoice.findById(id);
@@ -131,6 +178,9 @@ router.get("/:id/payment-details", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch payment details" });
   }
 });
+
+
+
 
 
 // UPDATE - A invoice
