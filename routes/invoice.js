@@ -95,6 +95,7 @@ router.get("/retailsale", async (req, res) => {
 
 
 // GET - Report Statement
+
 router.get("/report", async (req, res) => {
   try {
     const { fromDate, toDate } = req.query;
@@ -117,21 +118,38 @@ router.get("/report", async (req, res) => {
       { $unwind: "$items" },
       {
         $group: {
-          _id: "$items.name",
+          _id: {
+            productId: "$items.productId",
+            name: "$items.name",
+          },
           totalQuantity: { $sum: "$items.quantity" },
           totalAmount: { $sum: "$items.total" },
+          customers: {
+            $push: {
+              name: "$customer.name",
+              phone: "$customer.phone",
+              quantity: "$items.quantity",
+              amount: "$items.total",
+              transactionId: "$transactionId",
+              createdAt: "$createdAt",
+              paymentMethod: "$paymentMethod",
+              saleSystem: "$saleSystem",
+            },
+          },
         },
       },
       {
         $project: {
           _id: 0,
-          name: "$_id",
+          productId: "$_id.productId",
+          name: "$_id.name",
           totalQuantity: 1,
           totalAmount: 1,
+          customers: 1,
         },
       },
-
     ]);
+
     res.json(result);
   } catch (err) {
     console.error("Item-wise report error:", err);
