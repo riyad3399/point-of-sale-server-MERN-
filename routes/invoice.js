@@ -62,6 +62,64 @@ router.post("/", async (req, res) => {
   }
 });
 
+// GET - Due customers
+router.get("/due-customers", async (req, res) => {
+  try {
+    const customers = await Invoice.aggregate([
+      {
+        $match: {
+          "totals.due": { $exists: true, $gt: 0 },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            name: "$customer.name",
+            phone: "$customer.phone",
+          },
+          totalDue: { $sum: "$totals.due" },
+          totalPaid: { $sum: "$totals.paid" },
+          invoiceCount: { $sum: 1 },
+          invoiceIds: { $push: "$transactionId" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          name: "$_id.name",
+          phone: "$_id.phone",
+          totalDue: 1,
+          totalPaid: 1,
+          invoiceCount: 1,
+          invoiceIds: 1,
+        },
+        
+      },
+      {
+        $sort: {totalDue: -1}
+      }
+    ]);
+    res.json(customers);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch invoice" });
+  }
+});
+
+// GET - Recent Transactions
+router.get("/recent-transactions", async (req, res) => {
+  try {
+    const recentTransactions = await Invoice.find({})
+      .sort({ createdAt: -1 }) 
+      .limit(10)
+      .select("transactionId createdAt paymentMethod totals.total");
+
+    res.json(recentTransactions);
+  } catch (error) {
+    console.error("Error fetching recent transactions:", error);
+    res.status(500).json({ message: "Failed to fetch recent transactions" });
+  }
+});
+
 // GET - All invoice
 router.get("/", async (req, res) => {
   try {
@@ -82,6 +140,7 @@ router.get("/wholesale", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch invoice" });
   }
 });
+
 // GET all retailSale invoices
 router.get("/retailsale", async (req, res) => {
   try {
@@ -93,9 +152,7 @@ router.get("/retailsale", async (req, res) => {
   }
 });
 
-
 // GET - Report Statement
-
 router.get("/report", async (req, res) => {
   try {
     const { fromDate, toDate } = req.query;
@@ -157,6 +214,178 @@ router.get("/report", async (req, res) => {
   }
 });
 
+//  GET - Dashboard today's sales
+router.get("/today-sales", async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Today 00:00
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1); // Tomorrow 00:00
+
+    const result = await Invoice.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: today, $lt: tomorrow },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$totals.payable" },
+          totalDue: { $sum: "$totals.due" },
+          wholeSale: {
+            $sum: {
+              $cond: [
+                { $eq: ["$saleSystem", "wholeSale"] },
+                "$totals.payable",
+                0,
+              ],
+            },
+          },
+          retailSale: {
+            $sum: {
+              $cond: [
+                { $eq: ["$saleSystem", "retailSale"] },
+                "$totals.payable",
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalSales: 1,
+          totalDue: 1,
+          wholeSale: 1,
+          retailSale: 1,
+        },
+      },
+    ]);
+
+    res.json(
+      result[0] || {
+        totalSales: 0,
+        totalDue: 0,
+        wholeSale: 0,
+        retailSale: 0,
+      }
+    );
+  } catch (err) {
+    console.error("Today's sales error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET - Dashboard total sales
+router.get("/total-sales", async (req, res) => {
+  try {
+    const result = await Invoice.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalSales: { $sum: "$totals.payable" },
+          totalDue: { $sum: "$totals.due" },
+          wholeSale: {
+            $sum: {
+              $cond: [
+                { $eq: ["$saleSystem", "wholeSale"] },
+                "$totals.payable",
+                0,
+              ],
+            },
+          },
+          retailSale: {
+            $sum: {
+              $cond: [
+                { $eq: ["$saleSystem", "retailSale"] },
+                "$totals.payable",
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          totalSales: 1,
+          totalDue: 1,
+          wholeSale: 1,
+          retailSale: 1,
+        },
+      },
+    ]);
+
+    res.json(
+      result[0] || {
+        totalSales: 0,
+        totalDue: 0,
+        wholeSale: 0,
+        retailSale: 0,
+      }
+    );
+  } catch (err) {
+    console.error("Total sales error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET - Sales over view chart
+router.get("/sales-7-days", async (req, res) => {
+  try {
+    const today = new Date();
+    const result = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(today.getDate() - i);
+      const start = new Date(d.setHours(0, 0, 0, 0));
+      const end = new Date(d.setHours(23, 59, 59, 999));
+
+      const invoices = await Invoice.find({
+        createdAt: { $gte: start, $lte: end },
+      });
+
+      let totalSale = 0;
+      let totalDue = 0;
+      let totalWholesale = 0;
+      let totalRetail = 0;
+
+      for (const invoice of invoices) {
+        const total = invoice?.totals?.total || 0;
+        const due = invoice?.totals?.due || 0;
+
+        totalSale += total;
+        totalDue += due;
+
+        if (invoice.saleSystem === "wholesale") {
+          totalWholesale += total;
+        } else if (invoice.saleSystem === "retail") {
+          totalRetail += total;
+        }
+      }
+
+      result.push({
+        date: start.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        totalSale,
+        totalDue,
+        totalWholesale,
+        totalRetail,
+      });
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to load sales overview" });
+  }
+});
 
 // GET - A invoice
 router.get("/:id", async (req, res) => {
@@ -196,10 +425,6 @@ router.get("/:id/payment-details", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch payment details" });
   }
 });
-
-
-
-
 
 // UPDATE - A invoice
 router.put("/:id", async (req, res) => {
@@ -261,5 +486,7 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({ message: "Something went wrong!" });
   }
 });
+
+
 
 module.exports = router;
