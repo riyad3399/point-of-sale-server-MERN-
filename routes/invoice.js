@@ -62,15 +62,28 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET - Due customers
+
+// GET /due-customers?dueDate=2025-05-28
 router.get("/due-customers", async (req, res) => {
   try {
-    const customers = await Invoice.aggregate([
-      {
-        $match: {
-          "totals.due": { $exists: true, $gt: 0 },
-        },
-      },
+    const { dueDate } = req.query;
+
+    const matchConditions = {
+      "totals.due": { $gt: 0 },
+    };
+
+    if (dueDate && dueDate.trim() !== "") {
+      const start = new Date(dueDate);
+      start.setHours(0, 0, 0, 0);
+
+      const end = new Date(dueDate);
+      end.setHours(23, 59, 59, 999);
+
+      matchConditions["dueDate"] = { $gte: start, $lte: end };
+    }
+
+    const pipeline = [
+      { $match: matchConditions },
       {
         $group: {
           _id: {
@@ -93,25 +106,32 @@ router.get("/due-customers", async (req, res) => {
           invoiceCount: 1,
           invoiceIds: 1,
         },
-        
       },
-      {
-        $sort: {totalDue: -1}
-      }
-    ]);
-    res.json(customers);
+      { $sort: { totalDue: -1 } },
+    ];
+
+    if (!dueDate || dueDate.trim() === "") {
+      pipeline.push({ $limit: 10 });
+    }
+
+    const customers = await Invoice.aggregate(pipeline);
+
+    res.status(200).json(customers);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch invoice" });
+    console.error("Error fetching due customers:", error);
+    res.status(500).json({ message: "Failed to fetch due customers" });
   }
 });
+
+
 
 // GET - Recent Transactions
 router.get("/recent-transactions", async (req, res) => {
   try {
     const recentTransactions = await Invoice.find({})
-      .sort({ createdAt: -1 }) 
+      .sort({ createdAt: -1 })
       .limit(10)
-      .select("transactionId createdAt paymentMethod totals.total");
+      .select("transactionId createdAt paymentMethod totals.total totals.due");
 
     res.json(recentTransactions);
   } catch (error) {
@@ -486,7 +506,5 @@ router.delete("/:id", async (req, res) => {
     res.status(500).json({ message: "Something went wrong!" });
   }
 });
-
-
 
 module.exports = router;
