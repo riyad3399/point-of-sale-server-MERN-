@@ -8,12 +8,12 @@ const categoryRoutes = require("./routes/categories");
 const customerRoutes = require("./routes/customer");
 const invioceRoutes = require("./routes/invoice");
 const settingRoutes = require("./routes/setting");
+const smsRoutes = require("./routes/sms");
 require("colors");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.use(express.urlencoded({ extended: true }));
-
 
 // Middleware
 dotenv.config();
@@ -25,15 +25,12 @@ app.use("/product", productRoutes);
 app.use("/category", categoryRoutes);
 app.use("/customer", customerRoutes);
 app.use("/invoice", invioceRoutes);
-app.use("/setting", settingRoutes)
-
-
+app.use("/setting", settingRoutes);
+app.use("/sms", smsRoutes);
 
 // Serve uploaded images statically
 // app.use("/uploads", express.static(path.resolve(__dirname, "/uploads")));
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));
-
-
 
 // MongoDB connect
 mongoose
