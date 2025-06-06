@@ -9,6 +9,7 @@ const customerRoutes = require("./routes/customer");
 const invioceRoutes = require("./routes/invoice");
 const settingRoutes = require("./routes/setting");
 const smsRoutes = require("./routes/sms");
+const quotationRoutes = require("./routes/quotation");
 require("colors");
 
 const app = express();
@@ -27,6 +28,7 @@ app.use("/customer", customerRoutes);
 app.use("/invoice", invioceRoutes);
 app.use("/setting", settingRoutes);
 app.use("/sms", smsRoutes);
+app.use("/quotations", quotationRoutes)
 
 // Serve uploaded images statically
 // app.use("/uploads", express.static(path.resolve(__dirname, "/uploads")));
