@@ -16,14 +16,14 @@ const customerSchema = new mongoose.Schema(
     customerName: { type: String, required: true },
     phone: { type: String, required: true },
     label: { type: String },
-    value: { type: Number }, // this acts like quotationId or customerId
+    value: { type: Number },
   },
   { _id: false }
 );
 
 const quotationSchema = new mongoose.Schema(
   {
-    quotationId: { type: Number, required: true, unique: true }, // from customer.value
+    quotationId: { type: Number, unique: true }, 
     customer: customerSchema,
     items: [itemSchema],
     saleType: {
@@ -31,9 +31,19 @@ const quotationSchema = new mongoose.Schema(
       enum: ["retailSale", "wholeSale"],
       required: true,
     },
+    shippingCost: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
+
+
+quotationSchema.pre("save", async function (next) {
+  if (this.quotationId) return next(); 
+  const lastQuotation = await this.constructor.findOne().sort({ quotationId: -1 });
+  this.quotationId = lastQuotation ? lastQuotation.quotationId + 1 : 100001;
+
+  next();
+});
 
 module.exports = mongoose.model("Quotation", quotationSchema);

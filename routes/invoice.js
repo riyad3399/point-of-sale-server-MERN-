@@ -63,6 +63,73 @@ router.post("/", async (req, res) => {
 });
 
 
+// Profit 
+router.get("/profit", async (req, res) => {
+  try {
+    const { fromDate, toDate } = req.query;
+
+    if (!fromDate || !toDate) {
+      return res
+        .status(400)
+        .json({ message: "fromDate এবং toDate অবশ্যই দিতে হবে" });
+    }
+
+    const from = new Date(fromDate);
+    from.setHours(0, 0, 0, 0);
+
+    const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
+
+    const aggregation = await Invoice.aggregate([
+      { $match: { createdAt: { $gte: from, $lte: to } } },
+      { $unwind: "$items" },
+      {
+        $project: {
+          transactionId: 1,
+          createdAt: 1,
+          itemProfit: {
+            $multiply: [
+              { $subtract: ["$items.price", "$items.purchasePrice"] },
+              "$items.quantity",
+            ],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$transactionId",
+          totalProfit: { $sum: "$itemProfit" },
+          createdAt: { $first: "$createdAt" },
+        },
+      },
+      {
+        $sort: { totalProfit: -1 },
+      },
+    ]);
+
+    const totalProfit = aggregation.reduce(
+      (acc, cur) => acc + cur.totalProfit,
+      0
+    );
+    const totalInvoices = aggregation.length;
+    const topInvoice = aggregation[0] || { transactionId: "-", totalProfit: 0 };
+
+    res.json({
+      totalProfit,
+      totalInvoices,
+      topInvoice,
+      fromDate,
+      toDate,
+      data: aggregation.sort((a, b) => a.createdAt - b.createdAt), // তারিখ ক্রমানুসারে সাজানো
+    });
+  } catch (err) {
+    console.error("Profit fetch error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+
 // GET /due-customers?dueDate=2025-05-28
 router.get("/due-customers", async (req, res) => {
   try {
@@ -124,7 +191,6 @@ router.get("/due-customers", async (req, res) => {
 });
 
 
-
 // GET - Recent Transactions
 router.get("/recent-transactions", async (req, res) => {
   try {
@@ -143,7 +209,7 @@ router.get("/recent-transactions", async (req, res) => {
 // GET - All invoice
 router.get("/", async (req, res) => {
   try {
-    const invoice = await Invoice.find();
+    const invoice = await Invoice.find().sort({_id: -1})
     res.status(200).json(invoice);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch invoice" });

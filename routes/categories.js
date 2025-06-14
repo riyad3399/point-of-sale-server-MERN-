@@ -16,7 +16,7 @@ router.post("/", async (req, res) => {
 // GET - all Categories
 router.get("/", async (req, res) => {
   try {
-    const categories = await Category.find();
+    const categories = await Category.find().sort({ _id: -1 });
     res.status(200).json(categories);
   } catch (err) {
     res.status(500).json("There was server error", err);

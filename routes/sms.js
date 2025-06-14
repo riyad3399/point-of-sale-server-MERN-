@@ -7,7 +7,6 @@ const router = express.Router();
 router.post("/send", async (req, res) => {
   const { to, message } = req.body;
 
-
   if (!to || !message) {
     return res.status(400).json({
       success: false,
@@ -23,10 +22,11 @@ router.post("/send", async (req, res) => {
       message: message,
     };
 
-
     const smsResponse = await axios.get("http://bulksmsbd.net/api/smsapi", {
       params,
     });
+
+    // console.log("SMS API response:", smsResponse.data);
 
 
     if (smsResponse.data.response_code === "SUCCESS") {

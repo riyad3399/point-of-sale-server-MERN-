@@ -33,8 +33,9 @@ const invoiceSchema = new mongoose.Schema(
         name: { type: String, required: true },
         quantity: { type: Number, required: true },
         price: { type: Number, required: true },
+        purchasePrice: { type: Number, required: true },
         total: { type: Number, required: true },
-        status: {type:String, required:true}
+        status: { type: String, required: true },
       },
     ],
     totals: {
@@ -44,7 +45,6 @@ const invoiceSchema = new mongoose.Schema(
       paid: { type: Number, default: 0 },
       due: { type: Number, default: 0 },
       change: { type: Number, default: 0 },
-
     },
     dueDate: Date,
     paymentDetails: [
