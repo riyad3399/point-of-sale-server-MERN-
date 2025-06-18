@@ -7,15 +7,46 @@ router.post("/add", async (req, res) => {
   try {
     const { items, customer, saleType, shippingCost } = req.body;
 
-    // Customer আছে কিনা চেক করবো
     if (!customer || !customer.customerName || !customer.phone) {
-      return res
-        .status(400)
-        .json({ message: "Select a Customer!" });
+      return res.status(400).json({ message: "Select a Customer!" });
+    }
+
+    const existingQuotation = await Quotation.findOne({
+      quotationId: customer?.value,
+    });
+
+    if (existingQuotation) {
+      const updatedItems = [...existingQuotation.items];
+
+      items.forEach((newItem) => {
+        const index = updatedItems.findIndex(
+          (item) => item.productId.toString() === newItem.productId.toString()
+        );
+
+        if (index !== -1) {
+          updatedItems[index].quantity = newItem.quantity;
+          updatedItems[index].price = newItem.price;
+        } else {
+          updatedItems.push(newItem);
+        }
+      });
+
+      // update other fields
+      existingQuotation.items = updatedItems;
+      existingQuotation.saleType = saleType;
+      existingQuotation.shippingCost = shippingCost;
+      existingQuotation.customer = customer;
+
+      const updated = await existingQuotation.save();
+
+      return res.status(200).json({
+        message: "Quotation updated successfully!",
+        data: updated,
+      });
     }
 
     const newQuotation = new Quotation({
-      quotationId: customer?.value, // middleware থেকে auto generate হবে যদি না থাকে
+      quotationId: customer?.value,
       customer,
       items,
       saleType,
@@ -23,16 +54,21 @@ router.post("/add", async (req, res) => {
     });
 
     const saved = await newQuotation.save();
-    res
-      .status(201)
-      .json({ message: "Quotation created successfully", data: saved });
+
+    res.status(201).json({
+      message: "Quotation created successfully",
+      data: saved,
+    });
   } catch (err) {
     console.error(err);
-    res
-      .status(500)
-      .json({ message: "Failed to create quotation", error: err.message });
+    res.status(500).json({
+      message: "Failed to create/update quotation",
+      error: err.message,
+    });
   }
 });
+
+
 
 // DELETE - a Quotation 
 router.delete("/:id", async (req, res) => {

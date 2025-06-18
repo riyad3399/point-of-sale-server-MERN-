@@ -2,8 +2,9 @@ const express = require("express");
 const router = express.Router();
 const Invoice = require("../schemas/invoiceSchema");
 const Product = require("../schemas/productSchema");
+const deductStockFIFO = require("../utils/deductStockFIFO");
 
-// Create a  invoice
+
 router.post("/", async (req, res) => {
   try {
     const {
@@ -25,6 +26,7 @@ router.post("/", async (req, res) => {
       change = totals.paid - totals.payable;
     }
 
+    // FIFO Logic + Product quantity decrement
     for (const item of items) {
       const { productId, quantity } = item;
 
@@ -33,12 +35,16 @@ router.post("/", async (req, res) => {
         continue;
       }
 
+      // Step 1: Apply FIFO logic to deduct from PurchaseStock
+      await deductStockFIFO(productId, quantity);
+
+      // Step 2: Decrease total stock in Product
       await Product.findByIdAndUpdate(productId, {
         $inc: { quantity: -quantity },
       });
     }
 
-    // Step 3: Invoice তৈরি করো
+    // Step 3: Save invoice
     const newInvoice = new Invoice({
       transactionId,
       saleSystem,
@@ -58,9 +64,70 @@ router.post("/", async (req, res) => {
     res.status(201).json(savedInvoice);
   } catch (err) {
     console.error("Invoice creation error:", err);
-    res.status(500).json({ message: "Something went wrong", error: err });
+    res
+      .status(500)
+      .json({ message: "Something went wrong", error: err.message });
   }
 });
+
+// // Create a  invoice
+// router.post("/", async (req, res) => {
+//   try {
+//     const {
+//       transactionId,
+//       saleSystem,
+//       customer,
+//       paymentMethod,
+//       items,
+//       totals,
+//       dueDate,
+//     } = req.body;
+
+//     // Calculate due and change
+//     let due = 0;
+//     let change = 0;
+//     if (totals.paid < totals.payable) {
+//       due = totals.payable - totals.paid;
+//     } else if (totals.paid > totals.payable) {
+//       change = totals.paid - totals.payable;
+//     }
+
+//     for (const item of items) {
+//       const { productId, quantity } = item;
+
+//       if (!productId || !quantity) {
+//         console.error("Missing productId or quantity in item:", item);
+//         continue;
+//       }
+
+//       await Product.findByIdAndUpdate(productId, {
+//         $inc: { quantity: -quantity },
+//       });
+//     }
+
+//     // Step 3: Invoice তৈরি করো
+//     const newInvoice = new Invoice({
+//       transactionId,
+//       saleSystem,
+//       customer,
+//       paymentMethod,
+//       items,
+//       totals: {
+//         ...totals,
+//         due,
+//         change,
+//       },
+//       dueDate: due > 0 ? dueDate : null,
+//     });
+
+//     const savedInvoice = await newInvoice.save();
+
+//     res.status(201).json(savedInvoice);
+//   } catch (err) {
+//     console.error("Invoice creation error:", err);
+//     res.status(500).json({ message: "Something went wrong", error: err });
+//   }
+// });
 
 
 // Profit 

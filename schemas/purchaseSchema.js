@@ -18,13 +18,28 @@ const purchaseItemSchema = new mongoose.Schema({
   },
 });
 
-const purchaseSchema = new mongoose.Schema(
+const supplierSchema = new mongoose.Schema(
   {
-    supplier: {
-      type: String,
+    _id: {
+      type: mongoose.Schema.Types.ObjectId,
       ref: "Supplier",
       required: true,
     },
+    name: {
+      type: String,
+      required: true,
+    },
+    phone: {
+      type: String,
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
+const purchaseSchema = new mongoose.Schema(
+  {
+    supplier: supplierSchema, // Embedded supplier info
     items: [purchaseItemSchema],
     total: {
       type: Number,
