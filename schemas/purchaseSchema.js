@@ -16,7 +16,18 @@ const purchaseItemSchema = new mongoose.Schema({
     required: true,
     min: 0,
   },
+  retailPrice: {
+    type: Number,
+    required: false,
+    min: 0,
+  },
+  wholesalePrice: {
+    type: Number,
+    required: false,
+    min: 0,
+  },
 });
+
 
 const supplierSchema = new mongoose.Schema(
   {

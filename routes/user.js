@@ -112,4 +112,12 @@ router.get(
   }
 );
 
+// POST - User logout
+router.post("/logout", (req, res) => {
+  res.status(200).json({
+    sucess: true,
+    message: "User Logout Successfull"
+  })
+})
+
 module.exports = router;

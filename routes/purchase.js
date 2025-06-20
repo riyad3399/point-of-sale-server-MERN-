@@ -90,7 +90,13 @@ router.post("/add", async (req, res) => {
     const purchaseItems = [];
 
     for (const item of items) {
-      const { productId, quantity, purchasePrice } = item;
+      const {
+        productId,
+        quantity,
+        purchasePrice,
+        retailPrice,
+        wholesalePrice,
+      } = item;
 
       const product = await Product.findById(productId);
       if (!product) {
@@ -99,26 +105,40 @@ router.post("/add", async (req, res) => {
           .json({ message: `Product not found: ${productId}` });
       }
 
-      // Update product stock
+      // Update product stock and prices
       product.quantity += quantity;
-      product.purchasePrice = purchasePrice; // Optional update
+      product.purchasePrice = purchasePrice;
+
+      if (retailPrice !== undefined) {
+        product.retailPrice = retailPrice;
+      }
+
+      if (wholesalePrice !== undefined) {
+        product.wholesalePrice = wholesalePrice;
+      }
+
       await product.save();
 
+      // Push into purchase item array
       purchaseItems.push({
         product: productId,
         quantity,
         purchasePrice,
+        retailPrice,
+        wholesalePrice,
       });
 
-      // ✅ FIFO stock tracking - insert PurchaseStock
+      // FIFO stock entry
       const stockEntry = new PurchaseStock({
         product: productId,
         purchasePrice,
         quantity,
         remainingQuantity: quantity,
         purchaseDate: new Date(),
-        // purchaseId: newPurchase?._id  // (will set later)
+        retailPrice,
+        wholesalePrice,
       });
+
       await stockEntry.save();
     }
 
