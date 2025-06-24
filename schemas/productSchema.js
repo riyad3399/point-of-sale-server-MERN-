@@ -22,24 +22,27 @@ const productSchema = mongoose.Schema(
     purchasePrice: {
       type: Number,
       required: true,
-      trim: true,
+      min: [0],
     },
     retailPrice: {
       type: Number,
       required: true,
-      trim: true,
+      min: [0],
     },
     wholesalePrice: {
       type: Number,
       required: true,
-      trim: true,
+      min: [0],
     },
     quantity: {
       type: Number,
       required: true,
-      trim: true,
+      min: [0],
     },
-    alertQuantity: Number,
+    alertQuantity: {
+      type: Number,
+      min:[0]
+    },
     unit: {
       type: String,
       enum: ["pcs", "kg", "ltr"],

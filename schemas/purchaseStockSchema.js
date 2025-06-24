@@ -10,6 +10,17 @@ const purchaseStockSchema = new mongoose.Schema(
     purchasePrice: {
       type: Number,
       required: true,
+      min: [0, "Purchase price must be positive"],
+    },
+    retailPrice: {
+      type: Number,
+      required: true,
+      min: [0, "Retail price must be positive"],
+    },
+    wholesalePrice: {
+      type: Number,
+      required: true,
+      min: [0, "Wholesale price must be positive"],
     },
     purchaseDate: {
       type: Date,

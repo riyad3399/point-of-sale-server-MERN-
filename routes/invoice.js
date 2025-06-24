@@ -17,7 +17,6 @@ router.post("/", async (req, res) => {
       dueDate,
     } = req.body;
 
-    // Calculate due and change
     let due = 0;
     let change = 0;
     if (totals.paid < totals.payable) {
@@ -26,7 +25,8 @@ router.post("/", async (req, res) => {
       change = totals.paid - totals.payable;
     }
 
-    // FIFO Logic + Product quantity decrement
+    const updatedItems = [];
+
     for (const item of items) {
       const { productId, quantity } = item;
 
@@ -35,22 +35,32 @@ router.post("/", async (req, res) => {
         continue;
       }
 
-      // Step 1: Apply FIFO logic to deduct from PurchaseStock
-      await deductStockFIFO(productId, quantity);
+      // FIFO deduct with batch details
+      const result = await deductStockFIFO(productId, quantity);
 
-      // Step 2: Decrease total stock in Product
+      if (!result.success) {
+        return res.status(400).json({
+          message: `Insufficient stock for product ${productId}`,
+        });
+      }
+
+      // Product quantity decrement
       await Product.findByIdAndUpdate(productId, {
         $inc: { quantity: -quantity },
       });
+
+      updatedItems.push({
+        ...item,
+        batches: result.deductedBatches, // <-- add batch details here
+      });
     }
 
-    // Step 3: Save invoice
     const newInvoice = new Invoice({
       transactionId,
       saleSystem,
       customer,
       paymentMethod,
-      items,
+      items: updatedItems,
       totals: {
         ...totals,
         due,
@@ -69,66 +79,6 @@ router.post("/", async (req, res) => {
       .json({ message: "Something went wrong", error: err.message });
   }
 });
-
-// // Create a  invoice
-// router.post("/", async (req, res) => {
-//   try {
-//     const {
-//       transactionId,
-//       saleSystem,
-//       customer,
-//       paymentMethod,
-//       items,
-//       totals,
-//       dueDate,
-//     } = req.body;
-
-//     // Calculate due and change
-//     let due = 0;
-//     let change = 0;
-//     if (totals.paid < totals.payable) {
-//       due = totals.payable - totals.paid;
-//     } else if (totals.paid > totals.payable) {
-//       change = totals.paid - totals.payable;
-//     }
-
-//     for (const item of items) {
-//       const { productId, quantity } = item;
-
-//       if (!productId || !quantity) {
-//         console.error("Missing productId or quantity in item:", item);
-//         continue;
-//       }
-
-//       await Product.findByIdAndUpdate(productId, {
-//         $inc: { quantity: -quantity },
-//       });
-//     }
-
-//     // Step 3: Invoice তৈরি করো
-//     const newInvoice = new Invoice({
-//       transactionId,
-//       saleSystem,
-//       customer,
-//       paymentMethod,
-//       items,
-//       totals: {
-//         ...totals,
-//         due,
-//         change,
-//       },
-//       dueDate: due > 0 ? dueDate : null,
-//     });
-
-//     const savedInvoice = await newInvoice.save();
-
-//     res.status(201).json(savedInvoice);
-//   } catch (err) {
-//     console.error("Invoice creation error:", err);
-//     res.status(500).json({ message: "Something went wrong", error: err });
-//   }
-// });
-
 
 // Profit 
 router.get("/profit", async (req, res) => {
@@ -195,8 +145,6 @@ router.get("/profit", async (req, res) => {
   }
 });
 
-
-
 // GET /due-customers?dueDate=2025-05-28
 router.get("/due-customers", async (req, res) => {
   try {
@@ -256,7 +204,6 @@ router.get("/due-customers", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch due customers" });
   }
 });
-
 
 // GET - Recent Transactions
 router.get("/recent-transactions", async (req, res) => {
@@ -344,6 +291,7 @@ router.get("/report", async (req, res) => {
               createdAt: "$createdAt",
               paymentMethod: "$paymentMethod",
               saleSystem: "$saleSystem",
+              purchasePrice: "$items.purchasePrice",
             },
           },
         },

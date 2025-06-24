@@ -4,6 +4,7 @@ const csv = require("csv-parser");
 const fs = require("fs");
 const path = require("path");
 const Product = require("../schemas/productSchema");
+const PurchaseStock = require("../schemas/purchaseStockSchema")
 const multer = require("multer");
 
 
@@ -20,9 +21,7 @@ const generateUniqueCode = async () => {
   return code;
 };
 
-
-
-// 🔧 Storage for CSV files (on disk)
+//  Storage for CSV files (on disk)
 const storageCsv = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, "../uploads");
@@ -46,13 +45,11 @@ const uploadCsv = multer({
   },
 });
 
-
 // Multer setup
-
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// POST - Add a New Product
+// POST- A product
 router.post("/", upload.single("photo"), async (req, res) => {
   try {
     const {
@@ -80,13 +77,13 @@ router.post("/", upload.single("photo"), async (req, res) => {
       productCode: sku,
       category,
       brand,
-      purchasePrice,
-      retailPrice,
-      wholesalePrice,
-      quantity,
-      alertQuantity,
+      purchasePrice: parseFloat(purchasePrice),
+      retailPrice: parseFloat(retailPrice),
+      wholesalePrice: parseFloat(wholesalePrice),
+      quantity: parseInt(quantity),
+      alertQuantity: parseInt(alertQuantity),
       unit,
-      tax,
+      tax: parseFloat(tax),
       taxType,
       color,
       size,
@@ -94,13 +91,28 @@ router.post("/", upload.single("photo"), async (req, res) => {
       photo,
     });
 
-    const savedProduct = await product.save();
+    const savedProduct = await product.save(); // ✅ First save the product
+
+    // 🟡 Now create the FIFO stock entry
+    const initialStock = new PurchaseStock({
+      product: savedProduct._id,
+      purchasePrice: savedProduct.purchasePrice,
+      quantity: savedProduct.quantity,
+      remainingQuantity: savedProduct.quantity,
+      purchaseDate: new Date(),
+      retailPrice: savedProduct.retailPrice,
+      wholesalePrice: savedProduct.wholesalePrice,
+    });
+
+    await initialStock.save();
+
     res.status(201).json(savedProduct);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Product creation error:", error.message);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
 
 // DELETE - A product
 router.delete("/:id", async (req, res) => {
@@ -116,12 +128,49 @@ router.delete("/:id", async (req, res) => {
 });
 
 // PATCH - update a product
+// router.patch("/:id", upload.single("photo"), async (req, res) => {
+//   try {
+//     const updates = { ...req.body };
+
+//     if (req.file) {
+//       updates.photo = req.file.buffer;
+//     }
+
+//     const updatedProduct = await Product.findByIdAndUpdate(
+//       req.params.id,
+//       { $set: updates },
+//       { new: true, runValidators: true }
+//     );
+
+//     if (!updatedProduct) {
+//       return res.status(404).json({ message: "Product Not Found" });
+//     }
+
+//     res.status(200).json(updatedProduct);
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: "Failed to update product" });
+//   }
+// });
+
 router.patch("/:id", upload.single("photo"), async (req, res) => {
   try {
-    const updates = { ...req.body };
+    const { quantity, purchasePrice, ...restUpdates } = req.body;
+    const updates = { ...restUpdates };
 
     if (req.file) {
       updates.photo = req.file.buffer;
+    }
+
+    if (quantity) {
+      return res.status(400).json({
+        message:
+          "You cannot directly update quantity. Please use the purchase system to adjust stock.",
+      });
+    }
+
+    if (purchasePrice) {
+      updates.purchasePrice = parseFloat(purchasePrice);
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -131,15 +180,18 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
     );
 
     if (!updatedProduct) {
-      return res.status(404).json({ message: "Product Not Found" });
+      return res.status(404).json({ message: "Product not found" });
     }
 
     res.status(200).json(updatedProduct);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Failed to update product" });
+    console.error("Product update error:", err.message);
+    res
+      .status(500)
+      .json({ message: "Failed to update product", error: err.message });
   }
 });
+
 
 // GET - low stock Product
 router.get("/low-stock", async (req, res) => {
@@ -157,15 +209,50 @@ router.get("/low-stock", async (req, res) => {
 
 
 // GET - All products
+// router.get("/", async (req, res) => {
+//   try {
+//     const products = await Product.find().select("-photo") // photo exclude
+//     res.status(200).json(products);
+//   } catch (error) {
+//     console.error(error);
+//     res.status(500).json({ message: "Failed to fetch products" });
+//   }
+// });
+
 router.get("/", async (req, res) => {
   try {
-    const products = await Product.find().select("-photo") // photo exclude
-    res.status(200).json(products);
+    const products = await Product.find().select("-photo").lean();
+
+    const fifoProducts = await Promise.all(
+      products.map(async (product) => {
+        const stockEntries = await PurchaseStock.find({
+          product: product._id,
+          remainingQuantity: { $gt: 0 },
+        })
+          .sort({ purchaseDate: 1 }) // FIFO
+          .select(
+            "purchasePrice retailPrice wholesalePrice remainingQuantity purchaseDate -_id"
+          )
+          .lean();
+
+        return {
+          ...product,
+          fifoStock: stockEntries, // 🔁 now includes retail & wholesale price from stock entry
+        };
+      })
+    );
+
+    res.status(200).json(fifoProducts);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Failed to fetch products" });
+    console.error("FIFO fetch error:", error);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch products with FIFO stock" });
   }
 });
+
+
+
 
 // GET - single product
 router.get("/:id", async (req, res) => {
