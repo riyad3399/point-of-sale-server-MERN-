@@ -8,46 +8,92 @@ const PurchaseStock = require("../schemas/purchaseStockSchema");
 //POST - A new purchase
 // router.post("/add", async (req, res) => {
 //   try {
-//     const { supplier, items, total, paid, paymentMethod } = req.body;
+//     const {
+//       supplier: supplierId,
+//       items,
+//       total,
+//       paid,
+//       paymentMethod,
+//     } = req.body;
 
-//     // Validate input
-//     if (!supplier || !items || !Array.isArray(items) || items.length === 0) {
+//     // Validation
+//     if (!supplierId || !items || !Array.isArray(items) || items.length === 0) {
 //       return res.status(400).json({ message: "Invalid purchase data" });
+//     }
+
+//     // Fetch supplier
+//     const supplierData = await Supplier.findById(supplierId);
+//     if (!supplierData) {
+//       return res.status(404).json({ message: "Supplier not found" });
 //     }
 
 //     const purchaseItems = [];
 
-//     // Loop through each item
 //     for (const item of items) {
-//       const { productId, quantity, purchasePrice } = item;
+//       const {
+//         productId,
+//         quantity,
+//         purchasePrice,
+//         retailPrice,
+//         wholesalePrice,
+//       } = item;
 
 //       const product = await Product.findById(productId);
-
 //       if (!product) {
 //         return res
 //           .status(404)
 //           .json({ message: `Product not found: ${productId}` });
 //       }
 
-//       // Update product quantity and purchase price
+//       // Update product stock and prices
 //       product.quantity += quantity;
-//       product.currentPurchasePrice = purchasePrice;
+//       product.purchasePrice = purchasePrice;
+
+//       if (retailPrice !== undefined) {
+//         product.retailPrice = retailPrice;
+//       }
+
+//       if (wholesalePrice !== undefined) {
+//         product.wholesalePrice = wholesalePrice;
+//       }
+
 //       await product.save();
 
+//       // Push into purchase item array
 //       purchaseItems.push({
 //         product: productId,
 //         quantity,
 //         purchasePrice,
+//         retailPrice,
+//         wholesalePrice,
 //       });
+
+//       // FIFO stock entry
+//       const stockEntry = new PurchaseStock({
+//         product: productId,
+//         purchasePrice,
+//         quantity,
+//         remainingQuantity: quantity,
+//         purchaseDate: new Date(),
+//         retailPrice,
+//         wholesalePrice,
+//       });
+
+//       await stockEntry.save();
 //     }
 
-//     // Create new purchase record
+//     const due = Math.max(total - paid, 0);
+
 //     const newPurchase = new Purchase({
-//       supplier,
+//       supplier: {
+//         _id: supplierData._id,
+//         name: supplierData.name,
+//         phone: supplierData.phone,
+//       },
 //       items: purchaseItems,
 //       total,
 //       paid,
-//       due: total - paid,
+//       due,
 //       paymentMethod,
 //     });
 
@@ -69,19 +115,28 @@ const PurchaseStock = require("../schemas/purchaseStockSchema");
 router.post("/add", async (req, res) => {
   try {
     const {
-      supplier: supplierId,
+      supplier,
+      supplierId,
       items,
       total,
+      discountPercent,
+      discount,
+      shippingCost,
+      grandTotal,
       paid,
+      due,
       paymentMethod,
+      status,
+      dueDate,
+      purchaseDate,
     } = req.body;
 
     // Validation
-    if (!supplierId || !items || !Array.isArray(items) || items.length === 0) {
+    if (!supplierId || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Invalid purchase data" });
     }
 
-    // Fetch supplier
+    // Check supplier existence
     const supplierData = await Supplier.findById(supplierId);
     if (!supplierData) {
       return res.status(404).json({ message: "Supplier not found" });
@@ -90,87 +145,102 @@ router.post("/add", async (req, res) => {
     const purchaseItems = [];
 
     for (const item of items) {
-      const {
-        productId,
-        quantity,
-        purchasePrice,
-        retailPrice,
-        wholesalePrice,
-      } = item;
+      const { product, quantity, purchasePrice, retailPrice, wholesalePrice } =
+        item;
 
-      const product = await Product.findById(productId);
-      if (!product) {
+      const productData = await Product.findById(product);
+      if (!productData) {
         return res
           .status(404)
-          .json({ message: `Product not found: ${productId}` });
+          .json({ message: `Product not found: ${product}` });
       }
 
-      // Update product stock and prices
-      product.quantity += quantity;
-      product.purchasePrice = purchasePrice;
+      // Update stock and prices
+      productData.quantity += quantity;
+      productData.purchasePrice = purchasePrice;
+      if (retailPrice !== undefined) productData.retailPrice = retailPrice;
+      if (wholesalePrice !== undefined)
+        productData.wholesalePrice = wholesalePrice;
+      await productData.save();
 
-      if (retailPrice !== undefined) {
-        product.retailPrice = retailPrice;
-      }
-
-      if (wholesalePrice !== undefined) {
-        product.wholesalePrice = wholesalePrice;
-      }
-
-      await product.save();
-
-      // Push into purchase item array
       purchaseItems.push({
-        product: productId,
+        product,
         quantity,
         purchasePrice,
         retailPrice,
         wholesalePrice,
       });
 
-      // FIFO stock entry
-      const stockEntry = new PurchaseStock({
-        product: productId,
+      // Create FIFO stock entry
+      await new PurchaseStock({
+        product,
         purchasePrice,
         quantity,
         remainingQuantity: quantity,
-        purchaseDate: new Date(),
+        purchaseDate: new Date(purchaseDate),
         retailPrice,
         wholesalePrice,
-      });
-
-      await stockEntry.save();
+      }).save();
     }
 
-    const due = Math.max(total - paid, 0);
-
+    // Final Save
     const newPurchase = new Purchase({
-      supplier: {
-        _id: supplierData._id,
-        name: supplierData.name,
-        phone: supplierData.phone,
-      },
+      supplier,
+      supplierId,
       items: purchaseItems,
       total,
+      discountPercent,
+      discount,
+      transportCost: shippingCost,
+      grandTotal,
       paid,
       due,
       paymentMethod,
+      status,
+      dueDate,
+      purchaseDate,
     });
 
     await newPurchase.save();
 
     res.status(201).json({
-      message: "Purchase successful",
+      message: "Purchase added successfully",
       purchase: newPurchase,
     });
   } catch (error) {
-    console.error("Purchase error:", error);
     res.status(500).json({
       message: "Something went wrong",
       error: error.message,
     });
   }
 });
+
+// POST - update a payment
+router.put("/:id/pay", async (req, res) => {
+  const { id } = req.params;
+  const { amount, method,note } = req.body;
+
+  try {
+    const purchase = await Purchase.findById(id);
+    if (!purchase) return res.status(404).json({ message: "Purchase not found" });
+
+    purchase.paid += amount;
+    purchase.due -= amount;
+
+    purchase.payments.push({
+      amount,
+      method,
+      note: note || "",
+      date: new Date(),
+    });    
+
+    await purchase.save();
+    res.json({ message: "Payment updated", purchase });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 // GET - all purchases
 router.get("/", async (req, res) => {
@@ -186,6 +256,28 @@ router.get("/", async (req, res) => {
       message: "Something went wrong",
       error: error.message,
     });
+  }
+});
+
+// GET - single purchase
+router.get("/:id", async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ message: "Invalid purchase ID" });
+  }
+
+  try {
+    const purchase = await Purchase.findById(id);
+
+    if (!purchase) {
+      return res.status(404).json({ message: "Purchase not found" });
+    }
+
+    res.json(purchase);
+  } catch (error) {
+    console.error("Error fetching purchase:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
   }
 });
 
