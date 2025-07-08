@@ -128,31 +128,6 @@ router.delete("/:id", async (req, res) => {
 });
 
 // PATCH - update a product
-// router.patch("/:id", upload.single("photo"), async (req, res) => {
-//   try {
-//     const updates = { ...req.body };
-
-//     if (req.file) {
-//       updates.photo = req.file.buffer;
-//     }
-
-//     const updatedProduct = await Product.findByIdAndUpdate(
-//       req.params.id,
-//       { $set: updates },
-//       { new: true, runValidators: true }
-//     );
-
-//     if (!updatedProduct) {
-//       return res.status(404).json({ message: "Product Not Found" });
-//     }
-
-//     res.status(200).json(updatedProduct);
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ message: "Failed to update product" });
-//   }
-// });
-
 router.patch("/:id", upload.single("photo"), async (req, res) => {
   try {
     const { quantity, purchasePrice, ...restUpdates } = req.body;
@@ -209,15 +184,6 @@ router.get("/low-stock", async (req, res) => {
 
 
 // GET - All products
-// router.get("/", async (req, res) => {
-//   try {
-//     const products = await Product.find().select("-photo") // photo exclude
-//     res.status(200).json(products);
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Failed to fetch products" });
-//   }
-// });
 
 router.get("/", async (req, res) => {
   try {
@@ -250,9 +216,6 @@ router.get("/", async (req, res) => {
       .json({ message: "Failed to fetch products with FIFO stock" });
   }
 });
-
-
-
 
 // GET - single product
 router.get("/:id", async (req, res) => {
