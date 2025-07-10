@@ -16,7 +16,8 @@ const allowRegisterIfNoUser = async (req, res, next) => {
         return res.status(401).json({ message: "Unauthorized" });
       }
 
-      if (!["admin", "developer"].some((r) => user.roles?.includes(r))) {
+      // ✅ Updated for string role instead of array
+      if (!["admin", "developer"].includes(user.role)) {
         return res
           .status(403)
           .json({ message: "Forbidden: Insufficient role" });
