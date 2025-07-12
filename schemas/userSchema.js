@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const crudPermissionSchema = new mongoose.Schema(
   {
+    trigger: { type: Boolean, default: true }, 
     view: { type: Boolean, default: false },
     add: { type: Boolean, default: false },
     edit: { type: Boolean, default: false },
@@ -9,6 +10,7 @@ const crudPermissionSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+
 
 const permissionSchema = new mongoose.Schema(
   {
