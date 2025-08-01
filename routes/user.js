@@ -94,7 +94,6 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Register error:", error.message);
     res.status(500).json({
       success: false,
       message: "Server Error",
@@ -162,7 +161,6 @@ router.put("/:id", authMiddleware, canUpdateUser, async (req, res) => {
 
     res.json({ user: updatedUser });
   } catch (err) {
-    console.error("User update error:", err);
     res.status(500).json({ message: "Failed to update user" });
   }
 });
@@ -245,12 +243,10 @@ router.post(
       const requesterMaxLevel = getMaxRoleLevel(requester.roles);
       const targetMaxLevel = getMaxRoleLevel(newRoles);
 
-      // ✅ Check: developer role কি assign করা হচ্ছে?
       if (newRoles.includes("developer")) {
-        // ✅ অন্য কেউ কি আগে থেকেই developer role এ আছে?
         const existingDeveloper = await User.findOne({
           roles: "developer",
-          _id: { $ne: id }, // নিজেকে বাদ দিয়ে অন্য কাউকে খুঁজে
+          _id: { $ne: id }, 
         });
 
         if (existingDeveloper) {
@@ -312,7 +308,7 @@ router.post(
         user: {
           _id: user._id,
           userName: user.userName,
-          roles: user.roles,
+          roles: user.role,
           permissions: user.permissions,
         },
       });

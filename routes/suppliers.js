@@ -22,7 +22,6 @@ router.post("/add", async (req, res) => {
       supplier: newSupplier,
     });
   } catch (err) {
-    console.error("Supplier add error:", err);
 
     // Handle duplicate email or supplierId errors
     if (err.code === 11000) {
