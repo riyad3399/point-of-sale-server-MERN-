@@ -18,10 +18,9 @@ const getTenantConnection = async (tenantDatabase) => {
     console.log("Connecting to tenant database:", dbName);
 
     const connection = await mongoose.createConnection(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     });
 
     await new Promise((resolve, reject) => {

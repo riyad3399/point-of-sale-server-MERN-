@@ -62,10 +62,10 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    if (user.isLocked && user.isLocked()) {
+    if (user.lockUntil && user.lockUntil > Date.now()) {
       return res.status(403).json({
         success: false,
-        message: `Account is locked until ${user.lockUntil}`,
+        message: `Account is locked until ${new Date(user.lockUntil).toLocaleString()}`,
       });
     }
 

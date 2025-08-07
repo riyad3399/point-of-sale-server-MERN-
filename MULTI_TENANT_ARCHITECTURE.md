@@ -281,23 +281,264 @@ If migrating from a single-tenant setup:
 - Use `/auth/me` to verify authentication
 - Monitor server logs for connection issues
 
+## Database Creation Process
+
+### Automatic Database Creation
+
+The system automatically creates tenant databases during user registration:
+
+1. **New Tenant Registration**:
+   ```javascript
+   POST /auth/register
+   {
+     "userName": "admin",
+     "email": "admin@company.com", 
+     "password": "SecurePass123!",
+     "tenantName": "My Company"
+   }
+   ```
+
+2. **Process**:
+   - Creates tenant record in global database
+   - Generates unique `tenantId` and `databaseName`
+   - Creates MongoDB connection to new tenant database
+   - Initializes tenant-specific collections
+   - Creates first tenant user with admin privileges
+
+3. **Database Naming Convention**:
+   - Global Database: `pos_global`
+   - Tenant Databases: `tenant_<tenantId>`
+   - Example: `tenant_my_company`
+
+### Manual Database Setup
+
+For development/testing, use the setup script:
+
+```bash
+npm run setup
+```
+
+This creates:
+- Global database with system collections
+- Master tenant for super admin
+- Demo tenant for testing
+
+## Production Setup Guide
+
+### 1. Environment Configuration
+
+Create `.env` file with production settings:
+
+```env
+PORT=3000
+# MongoDB Atlas (Production)
+MONGO_URI_BASE=mongodb+srv://username:password@cluster.mongodb.net
+MONGO_URI_ENDPOINT=?retryWrites=true&w=majority&appName=YourApp
+GLOBAL_DB_NAME=pos_global
+
+# Security
+SECRET_KEY=your-super-secure-jwt-secret-key-min-32-chars
+
+# SMS Service (Optional)
+BULKSMS_API=your_api_key
+BULKSMS_SENDER=your_sender_id
+```
+
+### 2. Database Setup
+
+1. **Create MongoDB Atlas Cluster** (or set up local MongoDB)
+2. **Configure Network Access** (whitelist server IPs)
+3. **Create Database User** with read/write permissions
+4. **Run Setup Script**:
+   ```bash
+   npm run setup
+   ```
+
+### 3. Initial Users
+
+After setup, the following users are available:
+
+**Super Admin**:
+- Username: `admin`
+- Password: `Admin123!@#`
+- Email: `admin@pos-system.com`
+- Tenant: `master`
+- Permissions: Full system access
+
+**Demo User** (for testing):
+- Username: `demo`
+- Password: `Demo123!@#`
+- Email: `demo@company.com`
+- Tenant: `demo`
+- Permissions: Limited access
+
+### 4. Testing
+
+Run comprehensive tests:
+
+```bash
+# Test with mock server (no database required)
+npm run test:mock
+
+# Test with real database
+TEST_URL=http://localhost:3000 npm test
+
+# Start development server
+npm run dev
+```
+
+## Code Changes Made (Production Fixes)
+
+### 1. Connection Improvements
+- **Fixed**: Removed deprecated MongoDB connection options
+- **Fixed**: Added proper error handling and connection pooling
+- **Added**: Connection state validation and cleanup
+
+### 2. Authentication Security
+- **Fixed**: Account locking mechanism
+- **Added**: JWT refresh tokens
+- **Added**: Password strength requirements in documentation
+
+### 3. Schema Consistency
+- **Fixed**: All schemas now export schema objects (not models)
+- **Fixed**: Consistent model registration in tenant connections
+- **Added**: Proper pre-save hooks and validation
+
+### 4. Error Handling
+- **Added**: Comprehensive error responses
+- **Added**: Proper HTTP status codes
+- **Added**: Request validation
+
+### 5. Development Tools
+- **Added**: Setup script for database initialization
+- **Added**: Mock server for testing without database
+- **Added**: API testing scripts
+- **Added**: Environment configuration examples
+
+## API Testing Examples
+
+### Registration
+```bash
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userName": "company_admin",
+    "email": "admin@mycompany.com",
+    "password": "SecurePass123!",
+    "tenantName": "My Company",
+    "firstName": "John",
+    "lastName": "Doe"
+  }'
+```
+
+### Login
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userName": "company_admin",
+    "password": "SecurePass123!"
+  }'
+```
+
+### Tenant-Specific Operations
+```bash
+# Get products (requires authentication)
+curl -X GET http://localhost:3000/product \
+  -H "Authorization: Bearer <your-jwt-token>"
+
+# Create category
+curl -X POST http://localhost:3000/category \
+  -H "Authorization: Bearer <your-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "categoryName": "Electronics",
+    "status": "Active"
+  }'
+```
+
 ## Performance Optimization
 
-1. **Connection Pooling**: Configure appropriate pool sizes
+1. **Connection Pooling**: Configure appropriate pool sizes (10 per tenant)
 2. **Caching**: Implement Redis for session and query caching
 3. **Indexing**: Ensure proper indexes on tenant databases
 4. **Query Optimization**: Use aggregation pipelines for complex queries
-5. **Connection Cleanup**: Regular cleanup of unused tenant connections
+5. **Connection Cleanup**: Automatic cleanup of unused tenant connections
+
+## Security Best Practices
+
+1. **Password Policy**: Minimum 8 characters with special characters
+2. **JWT Security**: 7-day access tokens, 30-day refresh tokens
+3. **Account Lockout**: 5 failed attempts = 30-minute lock
+4. **Input Validation**: All endpoints validate input data
+5. **CORS Configuration**: Properly configured for production domains
+
+## Monitoring & Logging
+
+### Production Logging
+```javascript
+// Add to server.js for production
+const morgan = require('morgan');
+app.use(morgan('combined'));
+
+// Log tenant connections
+console.log(`Tenant ${tenantId} connected to ${databaseName}`);
+```
+
+### Health Monitoring
+```bash
+# Check server health
+curl http://localhost:3000/health
+
+# Check admin stats (super admin required)
+curl -H "Authorization: Bearer <admin-token>" \
+     http://localhost:3000/admin/stats
+```
+
+## Troubleshooting Guide
+
+### Common Issues
+
+1. **"Authentication failed"**
+   - Check MongoDB credentials in .env
+   - Verify network access in MongoDB Atlas
+   - Ensure user has proper permissions
+
+2. **"Tenant not found"**
+   - Verify tenant exists in global database
+   - Check tenant is active
+   - Validate JWT token contains correct tenant info
+
+3. **"Connection refused"**
+   - Check MongoDB server is running
+   - Verify connection string format
+   - Test network connectivity
+
+### Debug Commands
+
+```bash
+# Check environment variables
+node -e "console.log(process.env.MONGO_URI_BASE)"
+
+# Test database connection
+node -e "
+const mongoose = require('mongoose');
+mongoose.connect('your-connection-string')
+  .then(() => console.log('Connected'))
+  .catch(err => console.error('Error:', err));
+"
+```
 
 ## Future Enhancements
 
 1. **Database Sharding**: For large-scale deployments
-2. **Read Replicas**: For improved read performance
+2. **Read Replicas**: For improved read performance  
 3. **Tenant Migration**: Tools for moving tenants between databases
 4. **Analytics Dashboard**: Cross-tenant analytics for super admins
 5. **API Rate Limiting**: Per-tenant API quotas
 6. **Automated Backup**: Tenant-specific backup scheduling
+7. **Multi-Region Support**: Geographic distribution of tenant data
 
 ---
 
-This multi-tenant architecture provides complete data isolation, scalable authentication, and efficient resource utilization while maintaining the existing application functionality.
+This multi-tenant architecture provides complete data isolation, scalable authentication, and efficient resource utilization while maintaining the existing application functionality. The system is production-ready with comprehensive error handling, security measures, and monitoring capabilities.

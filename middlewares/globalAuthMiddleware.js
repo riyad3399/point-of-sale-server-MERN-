@@ -34,10 +34,10 @@ const globalAuthMiddleware = async (req, res, next) => {
       });
     }
 
-    if (user.isLocked && user.isLocked()) {
+    if (user.lockUntil && user.lockUntil > Date.now()) {
       return res.status(403).json({ 
         success: false,
-        message: "Account is locked. Please try again later." 
+        message: `Account is locked until ${new Date(user.lockUntil).toLocaleString()}` 
       });
     }
 

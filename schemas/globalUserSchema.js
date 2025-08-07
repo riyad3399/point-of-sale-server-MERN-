@@ -87,7 +87,7 @@ globalUserSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-globalUserSchema.methods.isLocked = function() {
+globalUserSchema.methods.isAccountLocked = function() {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
