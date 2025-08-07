@@ -43,4 +43,4 @@ const StoreSettingSchema = mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Setting", StoreSettingSchema);
+module.exports = StoreSettingSchema;

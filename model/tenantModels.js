@@ -1,26 +1,66 @@
 const { getTenantConnection } = require("../db/connectionManager");
 
-// Import schemas from your schemas folder
 const categorySchema = require("../schemas/categorySchema");
 const userSchema = require("../schemas/userSchema");
+const productSchema = require("../schemas/productSchema");
+const customerSchema = require("../schemas/customerSchema");
+const supplierSchema = require("../schemas/supplierSchem");
+const invoiceSchema = require("../schemas/invoiceSchema");
+const quotationSchema = require("../schemas/quotationSchema");
+const expenseSchema = require("../schemas/expenseSchema");
+const purchaseSchema = require("../schemas/purchaseSchema");
+const purchaseStockSchema = require("../schemas/purchaseStockSchema");
+const counterSchema = require("../schemas/counterSchema");
+const roleSchema = require("../schemas/roleSchema");
+const storeSettingSchema = require("../schemas/storeSettingSchema");
 
-const getTenantModels = async (tenantId) => {
-  const connection = await getTenantConnection(tenantId);
+const modelCache = {};
 
-  console.log('Connection Status:', {
-    isConnected: connection.readyState === 1,
-    state: connection.readyState,
-    name: connection.name,
-    host: connection.host,
-    port: connection.port
-  });
+const getTenantModels = async (tenantDatabase) => {
+  if (modelCache[tenantDatabase]) {
+    const connection = modelCache[tenantDatabase].connection;
+    if (connection.readyState === 1) {
+      return modelCache[tenantDatabase].models;
+    } else {
+      delete modelCache[tenantDatabase];
+    }
+  }
 
-  const Category =
-    connection.models.Category || connection.model("Category", categorySchema);
-  const User =
-    connection.models.User || connection.model("User", userSchema);
+  const connection = await getTenantConnection(tenantDatabase);
 
-  return { Category, User };
+  const models = {
+    Category: connection.models.Category || connection.model("Category", categorySchema),
+    User: connection.models.User || connection.model("User", userSchema),
+    Product: connection.models.Product || connection.model("Product", productSchema),
+    Customer: connection.models.Customer || connection.model("Customer", customerSchema),
+    Supplier: connection.models.Supplier || connection.model("Supplier", supplierSchema),
+    Invoice: connection.models.Invoice || connection.model("Invoice", invoiceSchema),
+    Quotation: connection.models.Quotation || connection.model("Quotation", quotationSchema),
+    Expense: connection.models.Expense || connection.model("Expense", expenseSchema),
+    Purchase: connection.models.Purchase || connection.model("Purchase", purchaseSchema),
+    PurchaseStock: connection.models.PurchaseStock || connection.model("PurchaseStock", purchaseStockSchema),
+    Counter: connection.models.Counter || connection.model("Counter", counterSchema),
+    Role: connection.models.Role || connection.model("Role", roleSchema),
+    Setting: connection.models.Setting || connection.model("Setting", storeSettingSchema),
+  };
+
+  modelCache[tenantDatabase] = {
+    connection,
+    models,
+  };
+
+  return models;
 };
 
-module.exports = { getTenantModels };
+const clearModelCache = (tenantDatabase) => {
+  if (tenantDatabase) {
+    delete modelCache[tenantDatabase];
+  } else {
+    Object.keys(modelCache).forEach(key => delete modelCache[key]);
+  }
+};
+
+module.exports = { 
+  getTenantModels,
+  clearModelCache,
+};

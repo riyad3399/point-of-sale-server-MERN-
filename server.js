@@ -6,6 +6,7 @@ const dotenv = require("dotenv");
 const path = require("path");
 const passport = require("passport");
 const tenantMiddleware = require("./middlewares/tenantMiddleware");
+const { getGlobalConnection } = require("./db/globalConnection");
 require("colors");
 require("./config/passport");
 
@@ -20,10 +21,23 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 
-//  Tenant Middleware (global, applies to all routes)
+//  Authentication Routes (no tenant middleware needed)
+app.use("/auth", require("./routes/auth"));
+app.use("/admin", require("./routes/admin"));
+
+//  Health check route
+app.get("/health", (req, res) => {
+  res.status(200).json({ 
+    success: true, 
+    message: "Server is running",
+    timestamp: new Date().toISOString() 
+  });
+});
+
+//  Tenant Middleware (applies to tenant-specific routes)
 app.use(tenantMiddleware);
 
-//  Routes
+//  Tenant-specific Routes (require tenant context)
 app.use("/product", require("./routes/products"));
 app.use("/category", require("./routes/categories"));
 app.use("/customer", require("./routes/customer"));
@@ -52,8 +66,21 @@ app.use((err, req, res, next) => {
     .json({ message: "Internal Server Error", error: err.message });
 });
 
-//  Start Server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running at http://localhost:${PORT}`.bgCyan);
-  
-})
+//  Initialize Global Database and Start Server
+const startServer = async () => {
+  try {
+    await getGlobalConnection();
+    console.log("✅ Global database initialized".green);
+
+    app.listen(PORT, () => {
+      console.log(`🚀 Server is running at http://localhost:${PORT}`.bgCyan);
+      console.log(`📊 Global database: ${process.env.GLOBAL_DB_NAME}`.yellow);
+      console.log(`🏢 Multi-tenant architecture ready`.magenta);
+    });
+  } catch (error) {
+    console.error("❌ Failed to start server:".red, error);
+    process.exit(1);
+  }
+};
+
+startServer();

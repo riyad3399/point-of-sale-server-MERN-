@@ -128,4 +128,4 @@ purchaseSchema.pre("save", async function (next) {
   }
 });
 
-module.exports = mongoose.model("Purchase", purchaseSchema);
+module.exports = purchaseSchema;

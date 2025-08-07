@@ -133,4 +133,4 @@ const invoiceSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Invoice", invoiceSchema);
+module.exports = invoiceSchema;

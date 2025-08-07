@@ -56,5 +56,4 @@ ExpenseSchema.pre("save", function (next) {
   next();
 });
 
-module.exports =
-  mongoose.models.Expense || mongoose.model("Expense", ExpenseSchema);
+module.exports = ExpenseSchema;

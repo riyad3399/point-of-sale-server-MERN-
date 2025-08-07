@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(node:*)",
+      "Bash(git pull:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(rm:*)",
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(taskkill:*)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:docs.qloo.com)",
+      "Bash(pkill:*)",
+      "Bash(git commit:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run lint)",
+      "Bash(timeout 10 npm run dev)",
+      "WebFetch(domain:hackathon.api.qloo.com)",
+      "Bash(pnpm dev:*)",
+      "Bash(cmd /c \"pnpm dev\")",
+      "Bash(npx next build:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run typecheck:*)",
+      "Bash(npx next lint:*)",
+      "Bash(npm start)",
+      "Bash(npm install:*)",
+      "Bash(timeout 8 npm run dev)",
+      "Bash(pnpm run:*)",
+      "Bash(cmd /c \"pnpm run build\")",
+      "Bash(timeout:*)",
+      "Bash(find:*)",
+      "Bash(git checkout:*)"
+    ],
+    "deny": []
+  }
+}

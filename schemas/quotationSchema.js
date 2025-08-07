@@ -46,4 +46,4 @@ quotationSchema.pre("save", async function (next) {
   next();
 });
 
-module.exports = mongoose.model("Quotation", quotationSchema);
+module.exports = quotationSchema;
