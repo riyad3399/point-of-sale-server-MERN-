@@ -61,10 +61,8 @@
 
 const express = require("express");
 const router = express.Router();
-const tenantMiddleware = require("../middlewares/tenantMiddleware");
 
-// Tenant middleware ব্যবহার করো
-router.use(tenantMiddleware);
+// Tenant middleware is applied globally in server.js
 
 // POST - A category
 router.post("/", async (req, res) => {

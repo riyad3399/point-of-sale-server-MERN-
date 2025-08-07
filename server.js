@@ -34,21 +34,21 @@ app.get("/health", (req, res) => {
   });
 });
 
-//  Tenant Middleware (applies to tenant-specific routes)
-app.use(tenantMiddleware);
+//  Protected Routes (require authentication and tenant context)
+const globalAuthMiddleware = require("./middlewares/globalAuthMiddleware");
 
-//  Tenant-specific Routes (require tenant context)
-app.use("/product", require("./routes/products"));
-app.use("/category", require("./routes/categories"));
-app.use("/customer", require("./routes/customer"));
-app.use("/invoice", require("./routes/invoice"));
-app.use("/setting", require("./routes/setting"));
-app.use("/sms", require("./routes/sms"));
-app.use("/quotations", require("./routes/quotation"));
-app.use("/expenses", require("./routes/expense"));
-app.use("/purchases", require("./routes/purchase"));
-app.use("/suppliers", require("./routes/suppliers"));
-app.use("/user", require("./routes/user"));
+//  Apply global auth middleware and tenant middleware to protected routes
+app.use("/product", globalAuthMiddleware, tenantMiddleware, require("./routes/products"));
+app.use("/category", globalAuthMiddleware, tenantMiddleware, require("./routes/categories"));
+app.use("/customer", globalAuthMiddleware, tenantMiddleware, require("./routes/customer"));
+app.use("/invoice", globalAuthMiddleware, tenantMiddleware, require("./routes/invoice"));
+app.use("/setting", globalAuthMiddleware, tenantMiddleware, require("./routes/setting"));
+app.use("/sms", globalAuthMiddleware, tenantMiddleware, require("./routes/sms"));
+app.use("/quotations", globalAuthMiddleware, tenantMiddleware, require("./routes/quotation"));
+app.use("/expenses", globalAuthMiddleware, tenantMiddleware, require("./routes/expense"));
+app.use("/purchases", globalAuthMiddleware, tenantMiddleware, require("./routes/purchase"));
+app.use("/suppliers", globalAuthMiddleware, tenantMiddleware, require("./routes/suppliers"));
+app.use("/user", globalAuthMiddleware, tenantMiddleware, require("./routes/user"));
 
 //  Static files (e.g. images, uploads)
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));

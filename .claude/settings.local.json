@@ -36,7 +36,10 @@
       "Bash(npm start)",
       "Bash(timeout 15 npm start)",
       "Bash(timeout 10 npm start)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(timeout:*)",
+      "Bash(npm run setup:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": []
   }
