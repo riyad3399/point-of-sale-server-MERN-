@@ -39,7 +39,9 @@
       "Bash(node:*)",
       "Bash(timeout:*)",
       "Bash(npm run setup:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(npm install:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }
