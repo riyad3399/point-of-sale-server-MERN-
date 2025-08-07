@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const router = express.Router();
-const User = require("../schemas/userSchema");
+// const User = require("../schemas/userSchema");
 const authorizeRoles = require("../middlewares/authorizeRoles");
 const rolePriority = require("../utils/rolePriority");
 const allowRegisterIfNoUser = require("../middlewares/allowRegisterIfNoUser ");
@@ -20,10 +20,93 @@ const getMaxRoleLevel = (roles = []) => {
 };
 
 // POST - User Register
+// router.post("/register", allowRegisterIfNoUser, async (req, res) => {
+//   const { userName, password, role = "" } = req.body;
+
+//   try {
+//     const existingUser = await User.findOne({ userName });
+//     if (existingUser) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "User already exists" });
+//     }
+
+//     const userCount = await User.countDocuments();
+
+//     // ❌ Prevent second developer
+//     if (userCount > 0 && role === "developer") {
+//       const developerExists = await User.findOne({ role: "developer" });
+//       if (developerExists) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Developer role is already assigned to another user.",
+//         });
+//       }
+//     }
+
+//     const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+//     // ✅ Final role
+//     let finalRole = "";
+//     if (userCount === 0) {
+//       finalRole = "developer";
+//     } else {
+//       finalRole = "manager";
+//     }
+
+//     // ✅ Build permission object
+//     const deepClonePermissions = (template, value) => {
+//       const result = {};
+//       for (const key in template) {
+//         if (typeof template[key] === "object" && template[key] !== null) {
+//           result[key] = deepClonePermissions(template[key], value);
+//         } else {
+//           result[key] = value;
+//         }
+//       }
+//       return result;
+//     };
+
+//     let permissions = {};
+//     if (finalRole === "developer") {
+//       permissions = ALL_PERMISSIONS;
+//     } else {
+//       permissions = deepClonePermissions(ALL_PERMISSIONS, false);
+//     }
+
+//     const newUser = new User({
+//       userName,
+//       password: hashedPassword,
+//       role: finalRole,
+//       permissions,
+//     });
+
+//     const savedUser = await newUser.save();
+
+//     res.status(201).json({
+//       success: true,
+//       message: "User created successfully",
+//       user: {
+//         id: savedUser._id,
+//         userName: savedUser.userName,
+//         role: savedUser.role,
+//         permissions: savedUser.permissions,
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//       error: error.message,
+//     });
+//   }
+// });
+
 router.post("/register", allowRegisterIfNoUser, async (req, res) => {
-  const { userName, password, role = "" } = req.body;
+  const { userName, password, role = "", tenantId: inputTenantId } = req.body;
 
   try {
+    
     const existingUser = await User.findOne({ userName });
     if (existingUser) {
       return res
@@ -33,7 +116,7 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
 
     const userCount = await User.countDocuments();
 
-    // ❌ Prevent second developer
+    // Prevent second developer
     if (userCount > 0 && role === "developer") {
       const developerExists = await User.findOne({ role: "developer" });
       if (developerExists) {
@@ -46,15 +129,10 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // ✅ Final role
-    let finalRole = "";
-    if (userCount === 0) {
-      finalRole = "developer";
-    } else {
-      finalRole = "manager";
-    }
+    // Final role
+    const finalRole = userCount === 0 ? "developer" : "manager";
 
-    // ✅ Build permission object
+    // Build permission object
     const deepClonePermissions = (template, value) => {
       const result = {};
       for (const key in template) {
@@ -67,18 +145,43 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
       return result;
     };
 
-    let permissions = {};
-    if (finalRole === "developer") {
-      permissions = ALL_PERMISSIONS;
+    let permissions =
+      finalRole === "developer"
+        ? ALL_PERMISSIONS
+        : deepClonePermissions(ALL_PERMISSIONS, false);
+
+    // Generate tenantId
+    let tenantId;
+    if (userCount === 0) {
+      const cleanUserName = userName
+        .toLowerCase()
+        .replace(/\s+/g, "_")
+        .replace(/[^a-z0-9_]/g, "");
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      tenantId = `tenant_${cleanUserName}_${randomSuffix}`;
+
+      // Optional: Check if tenantId already exists (very rare)
+      const existingTenant = await User.findOne({ tenantId });
+      if (existingTenant) {
+        tenantId = `tenant_${cleanUserName}_${Date.now()}`;
+      }
     } else {
-      permissions = deepClonePermissions(ALL_PERMISSIONS, false);
+      if (!inputTenantId) {
+        return res.status(400).json({
+          success: false,
+          message: "tenantId is required for non-first users.",
+        });
+      }
+      tenantId = inputTenantId;
     }
 
+    // Save user
     const newUser = new User({
       userName,
       password: hashedPassword,
       role: finalRole,
       permissions,
+      tenantId,
     });
 
     const savedUser = await newUser.save();
@@ -90,6 +193,7 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
         id: savedUser._id,
         userName: savedUser.userName,
         role: savedUser.role,
+        tenantId: savedUser.tenantId,
         permissions: savedUser.permissions,
       },
     });
@@ -101,6 +205,7 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
     });
   }
 });
+
 
 // PUT - A User (update user role and permission)
 router.put("/:id", authMiddleware, canUpdateUser, async (req, res) => {
@@ -167,6 +272,60 @@ router.put("/:id", authMiddleware, canUpdateUser, async (req, res) => {
 
 
 // POST - User Login
+// router.post("/login", async (req, res) => {
+//   const { userName, password } = req.body;
+
+//   try {
+//     const existingUser = await User.findOne({ userName });
+
+//     if (!existingUser) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "User not found",
+//       });
+//     }
+
+//     const isPasswordMatch = await bcrypt.compare(
+//       password,
+//       existingUser.password
+//     );
+//     if (!isPasswordMatch) {
+//       return res.status(401).json({
+//         success: false,
+//         message: "Incorrect password",
+//       });
+//     }
+
+//     //  Include roles and permissions in payload
+//     const payload = {
+//       id: existingUser._id,
+//       userName: existingUser.userName,
+//       role: existingUser.role,
+//       permissions: existingUser.permissions || {}, // optional fallback
+//     };
+
+//     const token = jwt.sign(
+//       payload,
+//       process.env.SECRET_KEY || "your_jwt_secret",
+//       {
+//         expiresIn: "1d",
+//       }
+//     );
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Login successful",
+//       token: "Bearer " + token,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Server error",
+//       error: error.message,
+//     });
+//   }
+// });
+
 router.post("/login", async (req, res) => {
   const { userName, password } = req.body;
 
@@ -191,12 +350,13 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // ✅ Include roles and permissions in payload
+    // Include roles, permissions এবং tenantId
     const payload = {
       id: existingUser._id,
       userName: existingUser.userName,
       role: existingUser.role,
-      permissions: existingUser.permissions || {}, // optional fallback
+      permissions: existingUser.permissions || {},
+      tenantId: existingUser.tenantId, 
     };
 
     const token = jwt.sign(
@@ -211,6 +371,7 @@ router.post("/login", async (req, res) => {
       success: true,
       message: "Login successful",
       token: "Bearer " + token,
+      tenantId: existingUser.tenantId, 
     });
   } catch (error) {
     res.status(500).json({
@@ -220,6 +381,7 @@ router.post("/login", async (req, res) => {
     });
   }
 });
+
 
 // POST - role change (just developer)
 router.post(

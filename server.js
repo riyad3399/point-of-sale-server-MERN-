@@ -1,63 +1,59 @@
+// server.js
+
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
-const passport = require('passport');
-const productRoutes = require("./routes/products");
-const categoryRoutes = require("./routes/categories");
-const customerRoutes = require("./routes/customer");
-const invioceRoutes = require("./routes/invoice");
-const settingRoutes = require("./routes/setting");
-const smsRoutes = require("./routes/sms");
-const quotationRoutes = require("./routes/quotation");
-const expenseRoutes = require("./routes/expense");
-const purchaseRoutes = require("./routes/purchase");
-const supplierRoutes = require("./routes/suppliers")
-const userRoutes = require("./routes/user");
+const passport = require("passport");
+const tenantMiddleware = require("./middlewares/tenantMiddleware");
 require("colors");
-require("./config/passport")
+require("./config/passport");
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-app.use(express.urlencoded({ extended: true }));
 
-
-// Middleware
-dotenv.config();
+//  Middlewares
 app.use(cors());
-app.use(express.json()); // JSON data accept করবে
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(passport.initialize())
+app.use(passport.initialize());
 
+//  Tenant Middleware (global, applies to all routes)
+app.use(tenantMiddleware);
 
-// Routes
-app.use("/product", productRoutes);
-app.use("/category", categoryRoutes);
-app.use("/customer", customerRoutes);
-app.use("/invoice", invioceRoutes);
-app.use("/setting", settingRoutes);
-app.use("/sms", smsRoutes);
-app.use("/quotations", quotationRoutes)
-app.use("/expenses", expenseRoutes);
-app.use("/purchases", purchaseRoutes);
-app.use("/suppliers", supplierRoutes)
-app.use("/user", userRoutes);
+//  Routes
+app.use("/product", require("./routes/products"));
+app.use("/category", require("./routes/categories"));
+app.use("/customer", require("./routes/customer"));
+app.use("/invoice", require("./routes/invoice"));
+app.use("/setting", require("./routes/setting"));
+app.use("/sms", require("./routes/sms"));
+app.use("/quotations", require("./routes/quotation"));
+app.use("/expenses", require("./routes/expense"));
+app.use("/purchases", require("./routes/purchase"));
+app.use("/suppliers", require("./routes/suppliers"));
+app.use("/user", require("./routes/user"));
 
-// Serve uploaded images statically
-// app.use("/uploads", express.static(path.resolve(__dirname, "/uploads")));
+//  Static files (e.g. images, uploads)
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));
 
-// MongoDB connect
-mongoose
-  .connect(`${process.env.MONGO_URI}`, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("MongoDB connected successfully".bgYellow))
-  .catch((error) => console.error("MongoDB connection failed:".bgRed, error));
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`.bgCyan);
+//  404 fallback
+app.use((req, res, next) => {
+  res.status(404).json({ message: "Route not found" });
 });
+
+//  Global error handler (optional)
+app.use((err, req, res, next) => {
+  console.error("Global error:", err);
+  res
+    .status(500)
+    .json({ message: "Internal Server Error", error: err.message });
+});
+
+//  Start Server
+app.listen(PORT, () => {
+  console.log(`🚀 Server is running at http://localhost:${PORT}`.bgCyan);
+  
+})
