@@ -7,8 +7,7 @@
     "test:mock": "node scripts/test-server.js",
     "start": "node server.js",
     "server": "nodemon server.js",
-    "setup": "node scripts/setup.js",
-    "dev": "nodemon server.js"
+    "setup": "node scripts/setup.js"
   },
   "author": "Riyad khan",
   "license": "ISC",

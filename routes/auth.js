@@ -377,6 +377,19 @@ router.get("/me", globalAuthMiddleware, async (req, res) => {
   }
 });
 
+router.get("/count", async (req, res) => {
+  try {
+    const { GlobalUser } = await getGlobalModels(); // global user model
+    const userCount = await GlobalUser.countDocuments();
+    res.status(200).json({ success: true, userCount });
+  } catch (error) {
+    console.error("Error fetching user count:", error);
+    res
+      .status(500)
+      .json({ success: false, message: "Error fetching user count" });
+  }
+});
+
 function generateAllPermissions() {
   const crudPermission = {
     trigger: true,

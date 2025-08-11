@@ -20,93 +20,10 @@ const getMaxRoleLevel = (roles = []) => {
 };
 
 // POST - User Register
-// router.post("/register", allowRegisterIfNoUser, async (req, res) => {
-//   const { userName, password, role = "" } = req.body;
-
-//   try {
-//     const existingUser = await User.findOne({ userName });
-//     if (existingUser) {
-//       return res
-//         .status(400)
-//         .json({ success: false, message: "User already exists" });
-//     }
-
-//     const userCount = await User.countDocuments();
-
-//     // ❌ Prevent second developer
-//     if (userCount > 0 && role === "developer") {
-//       const developerExists = await User.findOne({ role: "developer" });
-//       if (developerExists) {
-//         return res.status(403).json({
-//           success: false,
-//           message: "Developer role is already assigned to another user.",
-//         });
-//       }
-//     }
-
-//     const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-//     // ✅ Final role
-//     let finalRole = "";
-//     if (userCount === 0) {
-//       finalRole = "developer";
-//     } else {
-//       finalRole = "manager";
-//     }
-
-//     // ✅ Build permission object
-//     const deepClonePermissions = (template, value) => {
-//       const result = {};
-//       for (const key in template) {
-//         if (typeof template[key] === "object" && template[key] !== null) {
-//           result[key] = deepClonePermissions(template[key], value);
-//         } else {
-//           result[key] = value;
-//         }
-//       }
-//       return result;
-//     };
-
-//     let permissions = {};
-//     if (finalRole === "developer") {
-//       permissions = ALL_PERMISSIONS;
-//     } else {
-//       permissions = deepClonePermissions(ALL_PERMISSIONS, false);
-//     }
-
-//     const newUser = new User({
-//       userName,
-//       password: hashedPassword,
-//       role: finalRole,
-//       permissions,
-//     });
-
-//     const savedUser = await newUser.save();
-
-//     res.status(201).json({
-//       success: true,
-//       message: "User created successfully",
-//       user: {
-//         id: savedUser._id,
-//         userName: savedUser.userName,
-//         role: savedUser.role,
-//         permissions: savedUser.permissions,
-//       },
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Server Error",
-//       error: error.message,
-//     });
-//   }
-// });
-
 router.post("/register", allowRegisterIfNoUser, async (req, res) => {
-  const { userName, password, role = "", tenantId: inputTenantId } = req.body;
+  const { userName, password, role = "" } = req.body;
 
   try {
-    
     const existingUser = await User.findOne({ userName });
     if (existingUser) {
       return res
@@ -116,7 +33,7 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
 
     const userCount = await User.countDocuments();
 
-    // Prevent second developer
+    //  Prevent second developer
     if (userCount > 0 && role === "developer") {
       const developerExists = await User.findOne({ role: "developer" });
       if (developerExists) {
@@ -129,10 +46,15 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-    // Final role
-    const finalRole = userCount === 0 ? "developer" : "manager";
+    //  Final role
+    let finalRole = "";
+    if (userCount === 0) {
+      finalRole = "developer";
+    } else {
+      finalRole = "manager";
+    }
 
-    // Build permission object
+    //  Build permission object
     const deepClonePermissions = (template, value) => {
       const result = {};
       for (const key in template) {
@@ -145,43 +67,18 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
       return result;
     };
 
-    let permissions =
-      finalRole === "developer"
-        ? ALL_PERMISSIONS
-        : deepClonePermissions(ALL_PERMISSIONS, false);
-
-    // Generate tenantId
-    let tenantId;
-    if (userCount === 0) {
-      const cleanUserName = userName
-        .toLowerCase()
-        .replace(/\s+/g, "_")
-        .replace(/[^a-z0-9_]/g, "");
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      tenantId = `tenant_${cleanUserName}_${randomSuffix}`;
-
-      // Optional: Check if tenantId already exists (very rare)
-      const existingTenant = await User.findOne({ tenantId });
-      if (existingTenant) {
-        tenantId = `tenant_${cleanUserName}_${Date.now()}`;
-      }
+    let permissions = {};
+    if (finalRole === "developer") {
+      permissions = ALL_PERMISSIONS;
     } else {
-      if (!inputTenantId) {
-        return res.status(400).json({
-          success: false,
-          message: "tenantId is required for non-first users.",
-        });
-      }
-      tenantId = inputTenantId;
+      permissions = deepClonePermissions(ALL_PERMISSIONS, false);
     }
 
-    // Save user
     const newUser = new User({
       userName,
       password: hashedPassword,
       role: finalRole,
       permissions,
-      tenantId,
     });
 
     const savedUser = await newUser.save();
@@ -193,7 +90,6 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
         id: savedUser._id,
         userName: savedUser.userName,
         role: savedUser.role,
-        tenantId: savedUser.tenantId,
         permissions: savedUser.permissions,
       },
     });
@@ -205,7 +101,6 @@ router.post("/register", allowRegisterIfNoUser, async (req, res) => {
     });
   }
 });
-
 
 // PUT - A User (update user role and permission)
 router.put("/:id", authMiddleware, canUpdateUser, async (req, res) => {
@@ -270,62 +165,7 @@ router.put("/:id", authMiddleware, canUpdateUser, async (req, res) => {
   }
 });
 
-
 // POST - User Login
-// router.post("/login", async (req, res) => {
-//   const { userName, password } = req.body;
-
-//   try {
-//     const existingUser = await User.findOne({ userName });
-
-//     if (!existingUser) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "User not found",
-//       });
-//     }
-
-//     const isPasswordMatch = await bcrypt.compare(
-//       password,
-//       existingUser.password
-//     );
-//     if (!isPasswordMatch) {
-//       return res.status(401).json({
-//         success: false,
-//         message: "Incorrect password",
-//       });
-//     }
-
-//     //  Include roles and permissions in payload
-//     const payload = {
-//       id: existingUser._id,
-//       userName: existingUser.userName,
-//       role: existingUser.role,
-//       permissions: existingUser.permissions || {}, // optional fallback
-//     };
-
-//     const token = jwt.sign(
-//       payload,
-//       process.env.SECRET_KEY || "your_jwt_secret",
-//       {
-//         expiresIn: "1d",
-//       }
-//     );
-
-//     res.status(200).json({
-//       success: true,
-//       message: "Login successful",
-//       token: "Bearer " + token,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       success: false,
-//       message: "Server error",
-//       error: error.message,
-//     });
-//   }
-// });
-
 router.post("/login", async (req, res) => {
   const { userName, password } = req.body;
 
@@ -350,13 +190,12 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // Include roles, permissions এবং tenantId
+    //  Include roles and permissions in payload
     const payload = {
       id: existingUser._id,
       userName: existingUser.userName,
       role: existingUser.role,
-      permissions: existingUser.permissions || {},
-      tenantId: existingUser.tenantId, 
+      permissions: existingUser.permissions || {}, // optional fallback
     };
 
     const token = jwt.sign(
@@ -371,7 +210,6 @@ router.post("/login", async (req, res) => {
       success: true,
       message: "Login successful",
       token: "Bearer " + token,
-      tenantId: existingUser.tenantId, 
     });
   } catch (error) {
     res.status(500).json({
@@ -381,7 +219,6 @@ router.post("/login", async (req, res) => {
     });
   }
 });
-
 
 // POST - role change (just developer)
 router.post(
@@ -408,7 +245,7 @@ router.post(
       if (newRoles.includes("developer")) {
         const existingDeveloper = await User.findOne({
           roles: "developer",
-          _id: { $ne: id }, 
+          _id: { $ne: id },
         });
 
         if (existingDeveloper) {
@@ -533,3 +370,243 @@ router.post("/logout", (req, res) => {
 });
 
 module.exports = router;
+
+
+// const express = require("express");
+// const bcrypt = require("bcrypt");
+// const jwt = require("jsonwebtoken");
+// const router = express.Router();
+
+// const globalAuthMiddleware = require("../middlewares/globalAuthMiddleware");
+// const tenantMiddleware = require("../middlewares/tenantMiddleware");
+// const ALL_PERMISSIONS = require("../constants/permissions");
+// const rolePriority = require("../utils/rolePriority");
+
+// const saltRounds = 10;
+
+// // Helper: Deep clone permissions with default value
+// const deepClonePermissions = (template, value) => {
+//   const result = {};
+//   for (const key in template) {
+//     if (typeof template[key] === "object" && template[key] !== null) {
+//       result[key] = deepClonePermissions(template[key], value);
+//     } else {
+//       result[key] = value;
+//     }
+//   }
+//   return result;
+// };
+
+// // Helper: Max role level
+// const getMaxRoleLevel = (roles = []) => {
+//   return roles.reduce((max, role) => {
+//     const level = rolePriority[role] ?? -1;
+//     return Math.max(max, level);
+//   }, -1);
+// };
+
+// // ========================
+// // PUBLIC ROUTES
+// // ========================
+
+// // Register (tenant-level)
+// router.post("/register", async (req, res) => {
+//   const { User } = req.models; // tenant DB model
+//   const { userName, password, role = "" } = req.body;
+
+//   try {
+//     const existingUser = await User.findOne({ userName });
+//     if (existingUser) {
+//       return res
+//         .status(400)
+//         .json({ success: false, message: "User already exists" });
+//     }
+
+//     const userCount = await User.countDocuments();
+
+//     // Prevent multiple developers
+//     if (userCount > 0 && role === "developer") {
+//       const developerExists = await User.findOne({ role: "developer" });
+//       if (developerExists) {
+//         return res.status(403).json({
+//           success: false,
+//           message: "Developer role is already assigned to another user.",
+//         });
+//       }
+//     }
+
+//     const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+//     let finalRole = "";
+//     if (userCount === 0) {
+//       finalRole = "developer"; // first user is developer
+//     } else {
+//       finalRole = "manager";
+//     }
+
+//     let permissions = {};
+//     if (finalRole === "developer") {
+//       permissions = ALL_PERMISSIONS;
+//     } else {
+//       permissions = deepClonePermissions(ALL_PERMISSIONS, false);
+//     }
+
+//     const newUser = new User({
+//       userName,
+//       password: hashedPassword,
+//       role: finalRole,
+//       permissions,
+//     });
+
+//     const savedUser = await newUser.save();
+
+//     res.status(201).json({
+//       success: true,
+//       message: "User created successfully",
+//       user: {
+//         id: savedUser._id,
+//         userName: savedUser.userName,
+//         role: savedUser.role,
+//         permissions: savedUser.permissions,
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       success: false,
+//       message: "Server Error",
+//       error: error.message,
+//     });
+//   }
+// });
+
+// // Login (tenant-level)
+// router.post("/login", tenantMiddleware, async (req, res) => {
+//   const { User } = req.models;
+//   const { userName, password } = req.body;
+
+//   try {
+//     const existingUser = await User.findOne({ userName });
+//     if (!existingUser) {
+//       return res
+//         .status(401)
+//         .json({ success: false, message: "User not found" });
+//     }
+
+//     const isPasswordMatch = await bcrypt.compare(
+//       password,
+//       existingUser.password
+//     );
+//     if (!isPasswordMatch) {
+//       return res
+//         .status(401)
+//         .json({ success: false, message: "Incorrect password" });
+//     }
+
+//     // Token payload
+//     const payload = {
+//       id: existingUser._id,
+//       tenantId: req.tenantId,
+//       tenantDatabase: req.tenantDatabase,
+//       userName: existingUser.userName,
+//       role: existingUser.role,
+//       permissions: existingUser.permissions || {},
+//     };
+
+//     const token = jwt.sign(payload, process.env.SECRET_KEY, {
+//       expiresIn: "1d",
+//     });
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Login successful",
+//       token: "Bearer " + token,
+//     });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ success: false, message: "Server error", error: error.message });
+//   }
+// });
+
+// // ========================
+// // PROTECTED ROUTES
+// // ========================
+
+// // All protected routes will require both globalAuth and tenant middleware
+// router.use(globalAuthMiddleware, tenantMiddleware);
+
+// // Get Profile
+// router.get("/profile", async (req, res) => {
+//   const { User } = req.models;
+//   const user = await User.findById(req.globalUser._id).select("-password");
+
+//   if (!user) {
+//     return res.status(404).json({ success: false, message: "User not found" });
+//   }
+
+//   res.status(200).json({ success: true, user });
+// });
+
+// // Update User Role & Permissions
+// router.put("/:id", async (req, res) => {
+//   const { User } = req.models;
+//   const { role, permissions } = req.body;
+//   const id = req.params.id;
+
+//   if (!role || typeof role !== "string") {
+//     return res.status(400).json({ message: "Invalid or missing role" });
+//   }
+//   if (
+//     !permissions ||
+//     typeof permissions !== "object" ||
+//     Array.isArray(permissions)
+//   ) {
+//     return res.status(400).json({ message: "Invalid permissions format" });
+//   }
+
+//   try {
+//     const updatedUser = await User.findByIdAndUpdate(
+//       id,
+//       { role, permissions },
+//       { new: true, runValidators: true }
+//     );
+
+//     if (!updatedUser) {
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     res.json({ user: updatedUser });
+//   } catch (err) {
+//     res.status(500).json({ message: "Failed to update user" });
+//   }
+// });
+
+// // Get all users (admin or developer)
+// router.get("/", async (req, res) => {
+//   const { User } = req.models;
+//   try {
+//     const users = await User.find({}, "userName role permissions");
+//     res.json({ users });
+//   } catch (err) {
+//     res.status(500).json({ message: "Failed to load users" });
+//   }
+// });
+
+// // Get user count
+// router.get("/count", async (req, res) => {
+//   const { User } = req.models;
+//   try {
+//     const userCount = await User.countDocuments();
+//     res.json({ userCount });
+//   } catch (error) {
+//     res.status(500).json({ message: "Error fetching user count" });
+//   }
+// });
+
+// // Logout
+// router.post("/logout", (req, res) => {
+//   res.status(200).json({ success: true, message: "User Logout Successful" });
+// });
+
+// module.exports = router;
+
