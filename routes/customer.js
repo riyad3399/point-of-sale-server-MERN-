@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const Customer = require("../schemas/customerSchema");
 
 // POST - A customer
 router.post("/", async (req, res) => {
   try {
+    const { Customer } = req.models;
     const { phone } = req.body;
     const existingCustomer = await Customer.findOne({ phone });
     if (existingCustomer) {
@@ -24,6 +24,7 @@ router.post("/", async (req, res) => {
 // GET - All customer
 router.get("/", async (req, res) => {
   try {
+    const { Customer } = req.models;
     const customers = await Customer.find();
     res.status(200).json(customers);
   } catch (err) {
@@ -34,6 +35,7 @@ router.get("/", async (req, res) => {
 // GET - single customer by phone
 router.get("/:value", async (req, res) => {
   try {
+    const { Customer } = req.models;
     const value = req.params.value.replace(/^\$/, ""); // remove leading $
     const customer = await Customer.findOne({ phone: value });
     if (!customer) {
@@ -52,6 +54,7 @@ router.patch("/:id", async (req, res) => {
   const updateData = req.body;
 
   try {
+    const { Customer } = req.models;
     const updatedCustomer = await Customer.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
@@ -70,6 +73,7 @@ router.patch("/:id", async (req, res) => {
 // DELETE - A customer
 router.delete("/:id", async (req, res) => {
   try {
+    const { Customer } = req.models;
     const id = req.params.id;
     const result = await Customer.deleteOne({ _id: id });
     res.status(200).json(result);

@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const Expense = require("../schemas/expenseSchema");
 
 // POST - Add new expense
 router.post("/", async (req, res) => {
   try {
+    const { Expense } = req.models;
     const { date, method, items } = req.body;
 
     if (!date || !method || !items || !items.length) {
@@ -32,6 +32,7 @@ router.post("/", async (req, res) => {
 // GET - all expense
 router.get("/", async (req, res) => {
   try {
+    const { Expense } = req.models;
     const { date, method } = req.query;
 
     const filter = {};
@@ -56,6 +57,7 @@ router.get("/", async (req, res) => {
 // PUT - A Expense
 router.put("/:id", async (req, res) => {
   try {
+    const { Expense } = req.models;
     const { date, method, items } = req.body;
     const id = req.params.id;
 
@@ -97,6 +99,7 @@ router.put("/:id", async (req, res) => {
 // DELETE - A Expense
 router.delete("/:id", async (req, res) => {
   try {
+    const { Expense } = req.models;
     const id = req.params.id;
     const deleted = await Expense.findByIdAndDelete(id);
     if (!deleted) {
@@ -111,6 +114,7 @@ router.delete("/:id", async (req, res) => {
 // GET - A Expense
 router.get("/:id", async (req, res) => {
   try {
+    const { Expense } = req.models;
     const id = req.params.id;
     const expense = await Expense.findById(id);
 

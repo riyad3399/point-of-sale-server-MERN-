@@ -5,7 +5,7 @@ const authMiddleware = require("../middlewares/authMiddleware");
 // POST - A category
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { Category } = req.models; // অথবা সরাসরি import করো
+    const { Category } = req.models; 
     const newCategory = new Category(req.body);
     const savedCategory = await newCategory.save();
     res.status(201).json(savedCategory);
@@ -16,7 +16,6 @@ router.post("/", authMiddleware, async (req, res) => {
       .json({ message: "There was server error", error: err.message });
   }
 });
-
 
 // GET - all Categories
 router.get("/", async (req, res) => {

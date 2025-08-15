@@ -3,7 +3,6 @@ const path = require("path");
 const multer = require("multer");
 const fs = require("fs");
 const router = express.Router();
-const StoreSetting = require("../schemas/storeSettingSchema");
 
 const uploadFolder = path.join(__dirname, "../uploads"); // routes ফোল্ডার থেকে এক ধাপ উপরে ও uploads
 
@@ -25,6 +24,8 @@ const upload = multer({ storage });
 // ================== POST - Create Settings (Only Once) ==================
 router.post("/", upload.single("logo"), async (req, res) => {
   try {
+    const { Setting } = req.models;
+
     const {
       storeName,
       phone,
@@ -36,14 +37,12 @@ router.post("/", upload.single("logo"), async (req, res) => {
       taxRate,
       currency,
     } = req.body;
-    console.log(req.body);
 
     const logoPath = req.file
       ? `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`
       : "";
 
-
-    const setting = new StoreSetting({
+    const setting = new Setting({
       storeName,
       phone,
       address,
@@ -71,21 +70,15 @@ router.post("/", upload.single("logo"), async (req, res) => {
 // ================== PATCH - Update Settings ==================
 router.patch("/", upload.single("logo"), async (req, res) => {
   try {
-    const existing = await StoreSetting.findOne();
+    const { Setting } = req.models;
+
+    const existing = await Setting.findOne();
     if (!existing) {
       return res.status(404).json({ message: "No store settings found" });
     }
 
-    const {
-      storeName,
-      phone,
-      address,
-      city,
-      state,
-      zip,
-      email,
-      currency,
-    } = req.body;
+    const { storeName, phone, address, city, state, zip, email, currency } =
+      req.body;
 
     // ফাইল আপলোড হলে logo ফিল্ড সেট করবো
     const logoUrl = req.file
@@ -106,11 +99,9 @@ router.patch("/", upload.single("logo"), async (req, res) => {
     };
 
     // ডাটাবেজ আপডেট
-    const updated = await StoreSetting.findByIdAndUpdate(
-      existing._id,
-      updateData,
-      { new: true }
-    );
+    const updated = await Setting.findByIdAndUpdate(existing._id, updateData, {
+      new: true,
+    });
 
     res.status(200).json({ message: "Store settings updated", data: updated });
   } catch (error) {
@@ -122,7 +113,9 @@ router.patch("/", upload.single("logo"), async (req, res) => {
 // ================== GET - Fetch Settings ==================
 router.get("/", async (req, res) => {
   try {
-    const setting = await StoreSetting.findOne();
+    const { Setting } = req.models;
+
+    const setting = await Setting.findOne();
     if (!setting) {
       return res.status(404).json({ message: "No store setting found" });
     }

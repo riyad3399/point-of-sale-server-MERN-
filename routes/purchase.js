@@ -1,13 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const Purchase = require("../schemas/purchaseSchema");
-const Product = require("../schemas/productSchema");
-const Supplier = require("../schemas/supplierSchem");
-const PurchaseStock = require("../schemas/purchaseStockSchema");
 
 //POST - A new purchase
 router.post("/add", async (req, res) => {
   try {
+    const { Supplier } = req.models;
+    const { Product } = req.models;
+    const { PurchaseStock } = req.models;
+    const { Purchase } = req.models;
+
     const {
       supplier,
       supplierId,
@@ -112,11 +113,14 @@ router.post("/add", async (req, res) => {
 // POST - update a payment
 router.put("/:id/pay", async (req, res) => {
   const { id } = req.params;
-  const { amount, method,note } = req.body;
+  const { amount, method, note } = req.body;
 
   try {
+    const { Purchase } = req.models;
+
     const purchase = await Purchase.findById(id);
-    if (!purchase) return res.status(404).json({ message: "Purchase not found" });
+    if (!purchase)
+      return res.status(404).json({ message: "Purchase not found" });
 
     purchase.paid += amount;
     purchase.due -= amount;
@@ -126,7 +130,7 @@ router.put("/:id/pay", async (req, res) => {
       method,
       note: note || "",
       date: new Date(),
-    });    
+    });
 
     await purchase.save();
     res.json({ message: "Payment updated", purchase });
@@ -138,6 +142,7 @@ router.put("/:id/pay", async (req, res) => {
 // GET - all purchases
 router.get("/", async (req, res) => {
   try {
+    const { Purchase } = req.models;
     const purchases = await Purchase.find().sort({ _id: -1 });
     res.status(200).json({
       message: "Fetch All Purchases Successfull!",
@@ -161,6 +166,8 @@ router.get("/:id", async (req, res) => {
   }
 
   try {
+    const { Purchase } = req.models;
+
     const purchase = await Purchase.findById(id);
 
     if (!purchase) {

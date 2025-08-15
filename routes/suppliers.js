@@ -1,11 +1,11 @@
 // routes/supplierRoutes.js
 const express = require("express");
 const router = express.Router();
-const Supplier = require("../schemas/supplierSchem");
 
-// ✅ Add New Supplier Route
+// Add New Supplier Route
 router.post("/add", async (req, res) => {
   try {
+    const { Supplier } = req.models;
     const { name, phone, email, address } = req.body;
 
     const newSupplier = new Supplier({
@@ -22,7 +22,6 @@ router.post("/add", async (req, res) => {
       supplier: newSupplier,
     });
   } catch (err) {
-
     // Handle duplicate email or supplierId errors
     if (err.code === 11000) {
       const duplicatedField = Object.keys(err.keyPattern)[0];
@@ -40,24 +39,25 @@ router.post("/add", async (req, res) => {
 
 // GET - all Suppliers
 router.get("/", async (req, res) => {
-    try {
-        const suppliers = await Supplier.find().sort({ _id: -1 });
-        res.status(200).json({
-          message: "Fetch All Supplier Successfull!",
-          data: suppliers,
-        });
-        
-    } catch (error) {
-        res.status(500).json({
-          message: "Something went wrong",
-          error: error.message,
-        });
-    }
-})
+  try {
+    const { Supplier } = req.models;
+    const suppliers = await Supplier.find().sort({ _id: -1 });
+    res.status(200).json({
+      message: "Fetch All Supplier Successfull!",
+      data: suppliers,
+    });
+  } catch (error) {
+    res.status(500).json({
+      message: "Something went wrong",
+      error: error.message,
+    });
+  }
+});
 
 // GET - A supplier
 router.get("/:id", async (req, res) => {
   try {
+    const { Supplier } = req.models;
     const { id } = req.params;
 
     const supplier = await Supplier.findOne({ _id: id });
@@ -71,6 +71,6 @@ router.get("/:id", async (req, res) => {
     console.error("Error fetching supplier:", error);
     res.status(500).json({ message: "Server error" });
   }
-})
+});
 
 module.exports = router;

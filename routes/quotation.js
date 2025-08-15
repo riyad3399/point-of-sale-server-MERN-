@@ -1,10 +1,11 @@
 const express = require("express");
 const router = express.Router();
-const Quotation = require("../schemas/quotationSchema");
 
 // Insert a quotation
 router.post("/add", async (req, res) => {
   try {
+    const { Quotation } = req.models;
+
     const { items, customer, saleType, shippingCost } = req.body;
 
     if (!customer || !customer.customerName || !customer.phone) {
@@ -68,12 +69,12 @@ router.post("/add", async (req, res) => {
   }
 });
 
-
-
-// DELETE - a Quotation 
+// DELETE - a Quotation
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   try {
+    const { Quotation } = req.models;
+
     const result = await Quotation.findByIdAndDelete(id);
 
     if (!result) {
@@ -94,10 +95,11 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-
 // GET - All Quotations
 router.get("/", async (req, res) => {
   try {
+    const { Quotation } = req.models;
+
     const quotation = await Quotation.find();
     res.status(200).json(quotation);
   } catch (err) {
@@ -114,6 +116,8 @@ router.put("/:quotationId", async (req, res) => {
   const updatedData = req.body;
 
   try {
+    const { Quotation } = req.models;
+
     const updatedQuotation = await Quotation.findOneAndUpdate(
       { quotationId: Number(quotationId) }, // find by quotationId field
       updatedData,

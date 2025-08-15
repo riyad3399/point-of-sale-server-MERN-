@@ -3,16 +3,15 @@ const router = express.Router();
 const csv = require("csv-parser");
 const fs = require("fs");
 const path = require("path");
-const Product = require("../schemas/productSchema");
-const PurchaseStock = require("../schemas/purchaseStockSchema")
 const multer = require("multer");
-
 
 const generateUniqueCode = async () => {
   let code;
   let exists = true;
 
   while (exists) {
+    const { Product } = req.models;
+
     code = Math.floor(100000 + Math.random() * 900000).toString();
     const product = await Product.findOne({ productCode: code });
     if (!product) exists = false;
@@ -21,7 +20,7 @@ const generateUniqueCode = async () => {
   return code;
 };
 
-//  Storage for CSV files (on disk)
+// Storage for CSV files (on disk)
 const storageCsv = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, "../uploads");
@@ -52,6 +51,8 @@ const upload = multer({ storage: storage });
 // POST- A product
 router.post("/", upload.single("photo"), async (req, res) => {
   try {
+    const { Product } = req.models;
+    const { PurchaseStock } = req.models;
     const {
       productName,
       sku,
@@ -113,10 +114,11 @@ router.post("/", upload.single("photo"), async (req, res) => {
   }
 });
 
-
 // DELETE - A product
 router.delete("/:id", async (req, res) => {
   try {
+    const { Product } = req.models;
+
     const deleted = await Product.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Not found" });
 
@@ -130,6 +132,8 @@ router.delete("/:id", async (req, res) => {
 // PATCH - update a product
 router.patch("/:id", upload.single("photo"), async (req, res) => {
   try {
+    const { Product } = req.models;
+
     const { quantity, purchasePrice, ...restUpdates } = req.body;
     const updates = { ...restUpdates };
 
@@ -167,10 +171,11 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
   }
 });
 
-
 // GET - low stock Product
 router.get("/low-stock", async (req, res) => {
   try {
+    const { Product } = req.models;
+
     const lowStockProducts = await Product.find({
       $expr: { $lte: ["$quantity", "$alertQuantity"] },
     });
@@ -182,11 +187,12 @@ router.get("/low-stock", async (req, res) => {
   }
 });
 
-
 // GET - All products
-
 router.get("/", async (req, res) => {
   try {
+    const { Product } = req.models;
+    const { PurchaseStock } = req.models;
+
     const products = await Product.find().select("-photo").lean();
 
     const fifoProducts = await Promise.all(
@@ -220,6 +226,8 @@ router.get("/", async (req, res) => {
 // GET - single product
 router.get("/:id", async (req, res) => {
   try {
+    const { Product } = req.models;
+
     const id = req.params.id;
     const product = await Product.findOne({ _id: id });
     res.status(200).json(product);
@@ -230,6 +238,8 @@ router.get("/:id", async (req, res) => {
 
 router.get("/image/:id", async (req, res) => {
   try {
+    const { Product } = req.models;
+
     const product = await Product.findById(req.params.id);
 
     if (!product || !product.photo) {
@@ -245,9 +255,10 @@ router.get("/image/:id", async (req, res) => {
   }
 });
 
-// 📥 CSV Upload Route
+// CSV Upload Route
 router.post("/upload-csv", uploadCsv.single("csv"), async (req, res) => {
   try {
+    const { Product } = req.models;
     if (!req.file) {
       return res.status(400).json({ message: "CSV ফাইল পাওয়া যায়নি" });
     }
@@ -315,6 +326,5 @@ router.post("/upload-csv", uploadCsv.single("csv"), async (req, res) => {
     });
   }
 });
-
 
 module.exports = router;

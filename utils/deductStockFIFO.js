@@ -1,7 +1,6 @@
 // utils/deductStockFIFO.js
-const PurchaseStock = require("../schemas/purchaseStockSchema");
 
-async function deductStockFIFO(productId, quantity) {
+async function deductStockFIFO(PurchaseStock, productId, quantity) {
   let qtyToDeduct = quantity;
   const deductionDetails = [];
 

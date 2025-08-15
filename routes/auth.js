@@ -10,10 +10,10 @@ const saltRounds = 10;
 
 const generateToken = (user) => {
   return jwt.sign(
-    { 
+    {
       id: user._id,
       userName: user.userName,
-      tenantId: user.tenantId 
+      tenantId: user.tenantId,
     },
     process.env.SECRET_KEY,
     { expiresIn: "7d" }
@@ -22,9 +22,9 @@ const generateToken = (user) => {
 
 const generateRefreshToken = (user) => {
   return jwt.sign(
-    { 
+    {
       id: user._id,
-      type: "refresh" 
+      type: "refresh",
     },
     process.env.SECRET_KEY,
     { expiresIn: "30d" }
@@ -44,8 +44,8 @@ router.post("/login", async (req, res) => {
 
     const { GlobalUser } = await getGlobalModels();
 
-    const user = await GlobalUser.findOne({ 
-      userName: userName.toLowerCase() 
+    const user = await GlobalUser.findOne({
+      userName: userName.toLowerCase(),
     });
 
     if (!user) {
@@ -65,7 +65,9 @@ router.post("/login", async (req, res) => {
     if (user.lockUntil && user.lockUntil > Date.now()) {
       return res.status(403).json({
         success: false,
-        message: `Account is locked until ${new Date(user.lockUntil).toLocaleString()}`,
+        message: `Account is locked until ${new Date(
+          user.lockUntil
+        ).toLocaleString()}`,
       });
     }
 
@@ -98,8 +100,8 @@ router.post("/login", async (req, res) => {
     await user.save();
 
     const tenantModels = await getTenantModels(user.tenantDatabase);
-    const tenantUser = await tenantModels.User.findOne({ 
-      userName: user.userName 
+    const tenantUser = await tenantModels.User.findOne({
+      userName: user.userName,
     });
 
     res.status(200).json({
@@ -110,7 +112,6 @@ router.post("/login", async (req, res) => {
       user: {
         id: user._id,
         userName: user.userName,
-        email: user.email,
         tenantId: user.tenantId,
         isSuperAdmin: user.isSuperAdmin,
         metadata: user.metadata,
@@ -129,38 +130,34 @@ router.post("/login", async (req, res) => {
 });
 
 router.post("/register", async (req, res) => {
-  const { 
-    userName, 
-    email, 
-    password, 
-    tenantId, 
+  const {
+    userName,
+    password,
+    tenantId,
     tenantName,
     firstName,
     lastName,
-    phone 
+    phone,
   } = req.body;
 
   try {
-    if (!userName || !email || !password) {
+    if (!userName || !password) {
       return res.status(400).json({
         success: false,
-        message: "Username, email, and password are required",
+        message: "Username and password are required",
       });
     }
 
     const { GlobalUser, Tenant } = await getGlobalModels();
 
     const existingUser = await GlobalUser.findOne({
-      $or: [
-        { userName: userName.toLowerCase() },
-        { email: email.toLowerCase() }
-      ]
+      $or: [{ userName: userName.toLowerCase() }],
     });
 
     if (existingUser) {
       return res.status(400).json({
         success: false,
-        message: "Username or email already exists",
+        message: "Username already exists",
       });
     }
 
@@ -176,8 +173,8 @@ router.post("/register", async (req, res) => {
         });
       }
     } else if (tenantName) {
-      const existingTenant = await Tenant.findOne({ 
-        tenantName: tenantName 
+      const existingTenant = await Tenant.findOne({
+        tenantName: tenantName,
       });
 
       if (existingTenant) {
@@ -213,7 +210,6 @@ router.post("/register", async (req, res) => {
 
     const globalUser = new GlobalUser({
       userName: userName.toLowerCase(),
-      email: email.toLowerCase(),
       password: password,
       tenantId: tenant.tenantId,
       tenantDatabase: tenant.databaseName,
@@ -228,7 +224,7 @@ router.post("/register", async (req, res) => {
     await globalUser.save();
 
     const tenantModels = await getTenantModels(tenant.databaseName);
-    
+
     const tenantUserData = {
       userName: userName.toLowerCase(),
       password: password,
@@ -253,19 +249,20 @@ router.post("/register", async (req, res) => {
       user: {
         id: globalUser._id,
         userName: globalUser.userName,
-        email: globalUser.email,
         tenantId: globalUser.tenantId,
         isSuperAdmin: globalUser.isSuperAdmin,
         metadata: globalUser.metadata,
         role: tenantUser.role,
         permissions: tenantUser.permissions,
       },
-      tenant: isNewTenant ? {
-        id: tenant._id,
-        tenantId: tenant.tenantId,
-        tenantName: tenant.tenantName,
-        plan: tenant.plan,
-      } : undefined,
+      tenant: isNewTenant
+        ? {
+            id: tenant._id,
+            tenantId: tenant.tenantId,
+            tenantName: tenant.tenantName,
+            plan: tenant.plan,
+          }
+        : undefined,
     });
   } catch (error) {
     console.error("Registration error:", error);
@@ -330,7 +327,7 @@ router.post("/refresh-token", async (req, res) => {
 router.post("/logout", globalAuthMiddleware, async (req, res) => {
   try {
     const { GlobalUser } = await getGlobalModels();
-    
+
     await GlobalUser.findByIdAndUpdate(req.globalUser._id, {
       refreshToken: null,
     });
@@ -351,8 +348,8 @@ router.post("/logout", globalAuthMiddleware, async (req, res) => {
 router.get("/me", globalAuthMiddleware, async (req, res) => {
   try {
     const tenantModels = await getTenantModels(req.globalUser.tenantDatabase);
-    const tenantUser = await tenantModels.User.findOne({ 
-      userName: req.globalUser.userName 
+    const tenantUser = await tenantModels.User.findOne({
+      userName: req.globalUser.userName,
     });
 
     res.status(200).json({
@@ -360,7 +357,6 @@ router.get("/me", globalAuthMiddleware, async (req, res) => {
       user: {
         id: req.globalUser._id,
         userName: req.globalUser.userName,
-        email: req.globalUser.email,
         tenantId: req.globalUser.tenantId,
         isSuperAdmin: req.globalUser.isSuperAdmin,
         metadata: req.globalUser.metadata,

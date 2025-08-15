@@ -1,12 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const Invoice = require("../schemas/invoiceSchema");
-const Product = require("../schemas/productSchema");
 const deductStockFIFO = require("../utils/deductStockFIFO");
 
-
+// POST - Create a invoice
 router.post("/", async (req, res) => {
   try {
+    const { Invoice, PurchaseStock, Product } = req.models;
+
     const {
       transactionId,
       saleSystem,
@@ -36,7 +36,7 @@ router.post("/", async (req, res) => {
       }
 
       // FIFO deduct with batch details
-      const result = await deductStockFIFO(productId, quantity);
+      const result = await deductStockFIFO(PurchaseStock, productId, quantity);
 
       if (!result.success) {
         return res.status(400).json({
@@ -80,9 +80,10 @@ router.post("/", async (req, res) => {
   }
 });
 
-// Profit 
+// Profit
 router.get("/profit", async (req, res) => {
   try {
+        const { Invoice } = req.models;
     const { fromDate, toDate } = req.query;
 
     if (!fromDate || !toDate) {
@@ -137,7 +138,7 @@ router.get("/profit", async (req, res) => {
       topInvoice,
       fromDate,
       toDate,
-      data: aggregation.sort((a, b) => a.createdAt - b.createdAt), // তারিখ ক্রমানুসারে সাজানো
+      data: aggregation.sort((a, b) => a.createdAt - b.createdAt), 
     });
   } catch (err) {
     console.error("Profit fetch error:", err);
@@ -148,6 +149,8 @@ router.get("/profit", async (req, res) => {
 // GET /due-customers?dueDate=2025-05-28
 router.get("/due-customers", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const { dueDate } = req.query;
 
     const matchConditions = {
@@ -208,6 +211,8 @@ router.get("/due-customers", async (req, res) => {
 // GET - Recent Transactions
 router.get("/recent-transactions", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const recentTransactions = await Invoice.find({})
       .sort({ createdAt: -1 })
       .limit(10)
@@ -223,7 +228,9 @@ router.get("/recent-transactions", async (req, res) => {
 // GET - All invoice
 router.get("/", async (req, res) => {
   try {
-    const invoice = await Invoice.find().sort({_id: -1})
+        const { Invoice } = req.models;
+
+    const invoice = await Invoice.find().sort({ _id: -1 });
     res.status(200).json(invoice);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch invoice" });
@@ -233,6 +240,8 @@ router.get("/", async (req, res) => {
 // GET all wholesale invoices
 router.get("/wholesale", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const invoices = await Invoice.find({ saleSystem: "wholeSale" });
     res.json(invoices);
   } catch (err) {
@@ -244,6 +253,8 @@ router.get("/wholesale", async (req, res) => {
 // GET all retailSale invoices
 router.get("/retailsale", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const invoices = await Invoice.find({ saleSystem: "retailSale" });
     res.json(invoices);
   } catch (err) {
@@ -255,6 +266,8 @@ router.get("/retailsale", async (req, res) => {
 // GET - Report Statement
 router.get("/report", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const { fromDate, toDate } = req.query;
 
     if (!fromDate || !toDate) {
@@ -318,6 +331,8 @@ router.get("/report", async (req, res) => {
 //  GET - Dashboard today's sales
 router.get("/today-sales", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0); // Today 00:00
 
@@ -383,6 +398,8 @@ router.get("/today-sales", async (req, res) => {
 // GET - Dashboard total sales
 router.get("/total-sales", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const result = await Invoice.aggregate([
       {
         $group: {
@@ -437,6 +454,8 @@ router.get("/total-sales", async (req, res) => {
 // GET - Sales over view chart
 router.get("/sales-7-days", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const today = new Date();
     const result = [];
 
@@ -492,6 +511,8 @@ router.get("/sales-7-days", async (req, res) => {
 router.get("/:id", async (req, res) => {
   console.log("hello world");
   try {
+        const { Invoice } = req.models;
+
     const id = req.params.id;
     const singleInvoice = await Invoice.findById(id);
 
@@ -507,6 +528,8 @@ router.get("/:id", async (req, res) => {
 // GET - customer payment details
 router.get("/:id/payment-details", async (req, res) => {
   try {
+        const { Invoice } = req.models;
+
     const { id } = req.params;
 
     const invoice = await Invoice.findOne({ transactionId: Number(id) }).select(
@@ -530,6 +553,7 @@ router.get("/:id/payment-details", async (req, res) => {
 // UPDATE - A invoice
 router.put("/:id", async (req, res) => {
   try {
+    const { Invoice } = req.models;
     const { id } = req.params;
     const { paid, discount = 0, nextDueAmount = 0, nextDueDate } = req.body;
 
@@ -572,6 +596,7 @@ router.put("/:id", async (req, res) => {
 // DELETE - A invoice
 router.delete("/:id", async (req, res) => {
   try {
+    const { Invoice } = req.models;
     const id = req.params.id;
     const deletedInvoice = await Invoice.findByIdAndDelete(id);
 
