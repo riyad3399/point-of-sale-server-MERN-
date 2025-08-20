@@ -1,379 +1,161 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const passport = require("passport");
+
 const router = express.Router();
-const authorizeRoles = require("../middlewares/authorizeRoles");
-const rolePriority = require("../utils/rolePriority");
-const allowRegisterIfNoUser = require("../middlewares/allowRegisterIfNoUser ");
-const saltRounds = 10;
-const ALL_PERMISSIONS = require("../constants/permissions");
-const canUpdateUser = require("../middlewares/canUpdateUser");
-const authMiddleware = require("../middlewares/authMiddleware");
 
-const getMaxRoleLevel = (roles = []) => {
-  return roles.reduce((max, role) => {
-    const level = rolePriority[role] ?? -1; // যদি rolePriority তে না থাকে
-    return Math.max(max, level);
-  }, -1);
-};
+const { getTenantModels } = require("../model/tenantModels");
+const { getGlobalModels } = require("../db/globalConnection");
 
-// POST - User Register
-router.post("/register", allowRegisterIfNoUser, async (req, res) => {
-  const { userName, password, role = "" } = req.body;
-
+// create user
+router.post("/:tenantId", async (req, res) => {
   try {
-    const { User } = req.models;
+    const { tenantId } = req.params;
+    const { userName, password, role } = req.body;
 
-    const existingUser = await User.findOne({ userName });
+    // 1. Tenant খুঁজে বের করা (Global DB থেকে)
+    const { Tenant } = await getGlobalModels();
+    const tenant = await Tenant.findOne({ tenantId });
+
+    if (!tenant) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Tenant not found" });
+    }
+
+    // 2. Tenant DB models নেয়া
+    const tenantModels = await getTenantModels(tenant.databaseName);
+
+    // 3. Duplicate check
+    const existingUser = await tenantModels.User.findOne({
+      userName: userName.toLowerCase(),
+    });
     if (existingUser) {
       return res
         .status(400)
-        .json({ success: false, message: "User already exists" });
+        .json({ success: false, message: "User already exists in tenant DB" });
     }
 
-    const userCount = await User.countDocuments();
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    //  Prevent second developer
-    if (userCount > 0 && role === "developer") {
-      const developerExists = await User.findOne({ role: "developer" });
-      if (developerExists) {
-        return res.status(403).json({
-          success: false,
-          message: "Developer role is already assigned to another user.",
-        });
-      }
-    }
-
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    //  Final role
-    let finalRole = "";
-    if (userCount === 0) {
-      finalRole = "developer";
-    } else {
-      finalRole = "manager";
-    }
-
-    //  Build permission object
-    const deepClonePermissions = (template, value) => {
-      const result = {};
-      for (const key in template) {
-        if (typeof template[key] === "object" && template[key] !== null) {
-          result[key] = deepClonePermissions(template[key], value);
-        } else {
-          result[key] = value;
-        }
-      }
-      return result;
-    };
-
-    let permissions = {};
-    if (finalRole === "developer") {
-      permissions = ALL_PERMISSIONS;
-    } else {
-      permissions = deepClonePermissions(ALL_PERMISSIONS, false);
-    }
-
-    const newUser = new User({
-      userName,
+    // 4. User Data তৈরি করা
+    const tenantUser = new tenantModels.User({
+      userName: userName.toLowerCase(),
       password: hashedPassword,
-      role: finalRole,
-      permissions,
+      role: role || "staff",
+      permissions:
+        role === "developer"
+          ? generateAllPermissions(true)
+          : generateAllPermissions(false),
     });
 
-    const savedUser = await newUser.save();
+    // 5. Save করা
+    await tenantUser.save();
 
     res.status(201).json({
       success: true,
-      message: "User created successfully",
-      user: {
-        id: savedUser._id,
-        userName: savedUser.userName,
-        role: savedUser.role,
-        permissions: savedUser.permissions,
-      },
+      message: "Tenant user created successfully",
+      user: tenantUser,
     });
   } catch (error) {
+    console.error("Tenant User Creation Error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// fetch user
+router.get("/:tenantId", async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+
+    // tenant database access
+    const { Tenant } = await getGlobalModels();
+    const tenant = await Tenant.findOne({ tenantId });
+    if (!tenant) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Tenant not found" });
+    }
+
+    const tenantModels = await getTenantModels(tenant.databaseName);
+    const users = await tenantModels.User.find().select("-password");
+
+    res.status(200).json({
+      success: true,
+      tenantId: tenant.tenantId,
+      users,
+    });
+  } catch (error) {
+    console.error("Tenant Users Fetch Error:", error);
     res.status(500).json({
       success: false,
-      message: "Server Error",
+      message: "Server error fetching tenant users",
       error: error.message,
     });
   }
 });
 
-// PUT - A User (update user role and permission)
-router.put("/:id", authMiddleware, canUpdateUser, async (req, res) => {
-  const { role, permissions } = req.body;
-  const id = req.params.id;
-  console.log(role);
 
-  if (!role || typeof role !== "string") {
-    return res.status(400).json({ message: "Invalid or missing role" });
-  }
 
-  if (
-    !permissions ||
-    typeof permissions !== "object" ||
-    Array.isArray(permissions)
-  ) {
-    return res.status(400).json({ message: "Invalid permissions format" });
-  }
-
-  const isValidPermissionStructure = (perm) => {
-    const crudKeys = ["view", "add", "edit", "delete"];
-
-    for (const group in perm) {
-      const section = perm[group];
-
-      if (typeof section.trigger !== "boolean") {
-        return false;
-      }
-
-      for (const module in section) {
-        if (module === "trigger") continue;
-
-        const actions = section[module];
-        for (const key of crudKeys) {
-          if (typeof actions[key] !== "boolean") {
-            return false;
-          }
-        }
-      }
-    }
-    return true;
+function generateAllPermissions(isAllowed) {
+  const crudPermission = {
+    trigger: isAllowed,
+    view: isAllowed,
+    add: isAllowed,
+    edit: isAllowed,
+    delete: isAllowed,
   };
 
-  if (!isValidPermissionStructure(permissions)) {
-    return res.status(400).json({ message: "Invalid permission structure" });
-  }
-
-  try {
-    const { User } = req.models;
-    const updatedUser = await User.findByIdAndUpdate(
-      id,
-      { role, permissions },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedUser) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json({ user: updatedUser });
-  } catch (err) {
-    res.status(500).json({ message: "Failed to update user" });
-  }
-});
-
-// POST - User Login
-router.post("/login", async (req, res) => {
-  const { userName, password } = req.body;
-
-  try {
-    const { User } = req.models;
-    const existingUser = await User.findOne({ userName });
-
-    if (!existingUser) {
-      return res.status(401).json({
-        success: false,
-        message: "User not found",
-      });
-    }
-
-    const isPasswordMatch = await bcrypt.compare(
-      password,
-      existingUser.password
-    );
-    if (!isPasswordMatch) {
-      return res.status(401).json({
-        success: false,
-        message: "Incorrect password",
-      });
-    }
-
-    //  Include roles and permissions in payload
-    const payload = {
-      id: existingUser._id,
-      userName: existingUser.userName,
-      role: existingUser.role,
-      permissions: existingUser.permissions || {}, // optional fallback
-    };
-
-    const token = jwt.sign(
-      payload,
-      process.env.SECRET_KEY || "your_jwt_secret",
-      {
-        expiresIn: "1d",
-      }
-    );
-
-    res.status(200).json({
-      success: true,
-      message: "Login successful",
-      token: "Bearer " + token,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Server error",
-      error: error.message,
-    });
-  }
-});
-
-// POST - role change (just developer)
-router.post(
-  "/:id/roles",
-  passport.authenticate("jwt", { session: false }),
-  authorizeRoles("developer"),
-  async (req, res) => {
-    const { id } = req.params;
-    const { roles: newRoles } = req.body;
-
-    try {
-      const { User } = req.models;
-      const targetUser = await User.findById(id);
-      if (!targetUser) {
-        return res
-          .status(404)
-          .json({ success: false, message: "User not found" });
-      }
-
-      const requester = req.user;
-
-      const requesterMaxLevel = getMaxRoleLevel(requester.roles);
-      const targetMaxLevel = getMaxRoleLevel(newRoles);
-
-      if (newRoles.includes("developer")) {
-        const existingDeveloper = await User.findOne({
-          roles: "developer",
-          _id: { $ne: id },
-        });
-
-        if (existingDeveloper) {
-          return res.status(403).json({
-            success: false,
-            message: "Only one developer is allowed in the system.",
-          });
-        }
-      }
-
-      if (requesterMaxLevel < targetMaxLevel) {
-        return res.status(403).json({
-          success: false,
-          message: "You cannot assign a role higher than your own",
-        });
-      }
-
-      targetUser.roles = newRoles;
-      await targetUser.save();
-
-      res.status(200).json({
-        success: true,
-        message: "Roles updated successfully",
-        user: {
-          id: targetUser._id,
-          userName: targetUser.userName,
-          roles: targetUser.roles,
-        },
-      });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
-    }
-  }
-);
-
-// POST - permission change (just developer)
-router.post(
-  "/:id/permissions",
-  passport.authenticate("jwt", { session: false }),
-  authorizeRoles("developer"), // শুধু developer permission change করতে পারবে
-  async (req, res) => {
-    const { id } = req.params;
-    const { permissions } = req.body;
-
-    try {
-      const { User } = req.models;
-      const user = await User.findById(id);
-      if (!user) {
-        return res
-          .status(404)
-          .json({ success: false, message: "User not found" });
-      }
-
-      user.permissions = permissions || [];
-      await user.save();
-
-      res.status(200).json({
-        success: true,
-        message: "Permissions updated successfully",
-        user: {
-          _id: user._id,
-          userName: user.userName,
-          roles: user.role,
-          permissions: user.permissions,
-        },
-      });
-    } catch (err) {
-      res.status(500).json({ success: false, message: err.message });
-    }
-  }
-);
-
-// GET - profile route
-router.get(
-  "/profile",
-  passport.authenticate("jwt", { session: false }),
-  authorizeRoles("admin", "manager", "developer"),
-  (req, res) => {
-    const { _id, userName, role } = req.user;
-
-    res.status(200).json({
-      success: true,
-      user: {
-        id: _id,
-        userName,
-        role,
-      },
-    });
-  }
-);
-
-// GET - all users
-router.get(
-  "/",
-  passport.authenticate("jwt", { session: false }),
-  authorizeRoles("admin", "developer"),
-  async (req, res) => {
-    try {
-      const { User } = req.models;
-      const users = await User.find({}, "userName role permissions");
-      res.json({ users });
-    } catch (err) {
-      res.status(500).json({ message: "Failed to load users" });
-    }
-  }
-);
-
-//  Get user count
-router.get("/count", async (req, res) => {
-  try {
-    const { User } = req.models;
-    const userCount = await User.countDocuments();
-    res.json({ userCount });
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching user count" });
-  }
-});
-
-// POST - User logout
-router.post("/logout", (req, res) => {
-  res.status(200).json({
-    sucess: true,
-    message: "User Logout Successfull",
-  });
-});
+  return {
+    sales: {
+      trigger: isAllowed,
+      retailSale: { ...crudPermission },
+      wholeSale: { ...crudPermission },
+      transactions: { ...crudPermission },
+      quotations: { ...crudPermission },
+    },
+    inventory: {
+      trigger: isAllowed,
+      categories: { ...crudPermission },
+      products: { ...crudPermission },
+      alertItems: { ...crudPermission },
+    },
+    purchase: {
+      trigger: isAllowed,
+      purchase: { ...crudPermission },
+    },
+    customers: {
+      trigger: isAllowed,
+      customers: { ...crudPermission },
+    },
+    supplier: {
+      trigger: isAllowed,
+      supplier: { ...crudPermission },
+    },
+    expense: {
+      trigger: isAllowed,
+      expense: { ...crudPermission },
+    },
+    accounts: {
+      trigger: isAllowed,
+      accounts: { ...crudPermission },
+    },
+    employee: {
+      trigger: isAllowed,
+      employee: { ...crudPermission },
+    },
+    report: {
+      trigger: isAllowed,
+      report: { ...crudPermission },
+    },
+    settings: {
+      trigger: isAllowed,
+      settings: { ...crudPermission },
+    },
+    usersAndPermission: {
+      trigger: isAllowed,
+      userManagement: { ...crudPermission },
+    },
+  };
+}
 
 module.exports = router;

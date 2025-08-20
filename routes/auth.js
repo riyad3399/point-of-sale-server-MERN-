@@ -224,12 +224,13 @@ router.post("/register", async (req, res) => {
     await globalUser.save();
 
     const tenantModels = await getTenantModels(tenant.databaseName);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const tenantUserData = {
       userName: userName.toLowerCase(),
-      password: password,
+      password: hashedPassword,
       role: isNewTenant ? "developer" : "manager",
-      permissions: isNewTenant ? generateAllPermissions() : {},
+      permissions: isNewTenant ? generateAllPermissions(true) : {},
     };
 
     const tenantUser = new tenantModels.User(tenantUserData);
@@ -273,6 +274,9 @@ router.post("/register", async (req, res) => {
     });
   }
 });
+
+
+
 
 router.post("/refresh-token", async (req, res) => {
   const { refreshToken } = req.body;
@@ -386,66 +390,71 @@ router.get("/count", async (req, res) => {
   }
 });
 
-function generateAllPermissions() {
+router.get("/", async (req, res) => {
+
+});
+
+function generateAllPermissions(isAllowed) {
   const crudPermission = {
-    trigger: true,
-    view: true,
-    add: true,
-    edit: true,
-    delete: true,
+    trigger: isAllowed,
+    view: isAllowed,
+    add: isAllowed,
+    edit: isAllowed,
+    delete: isAllowed,
   };
 
   return {
     sales: {
-      trigger: true,
+      trigger: isAllowed,
       retailSale: { ...crudPermission },
       wholeSale: { ...crudPermission },
       transactions: { ...crudPermission },
       quotations: { ...crudPermission },
     },
     inventory: {
-      trigger: true,
+      trigger: isAllowed,
       categories: { ...crudPermission },
       products: { ...crudPermission },
       alertItems: { ...crudPermission },
     },
     purchase: {
-      trigger: true,
+      trigger: isAllowed,
       purchase: { ...crudPermission },
     },
     customers: {
-      trigger: true,
+      trigger: isAllowed,
       customers: { ...crudPermission },
     },
     supplier: {
-      trigger: true,
+      trigger: isAllowed,
       supplier: { ...crudPermission },
     },
     expense: {
-      trigger: true,
+      trigger: isAllowed,
       expense: { ...crudPermission },
     },
     accounts: {
-      trigger: true,
+      trigger: isAllowed,
       accounts: { ...crudPermission },
     },
     employee: {
-      trigger: true,
+      trigger: isAllowed,
       employee: { ...crudPermission },
     },
     report: {
-      trigger: true,
+      trigger: isAllowed,
       report: { ...crudPermission },
     },
     settings: {
-      trigger: true,
+      trigger: isAllowed,
       settings: { ...crudPermission },
     },
     usersAndPermission: {
-      trigger: true,
+      trigger: isAllowed,
       userManagement: { ...crudPermission },
     },
   };
 }
+
 
 module.exports = router;
