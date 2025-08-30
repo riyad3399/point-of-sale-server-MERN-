@@ -1,5 +1,4 @@
 // server.js
-
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -27,10 +26,10 @@ app.use("/admin", require("./routes/admin"));
 
 //  Health check route
 app.get("/health", (req, res) => {
-  res.status(200).json({ 
-    success: true, 
+  res.status(200).json({
+    success: true,
     message: "Server is running",
-    timestamp: new Date().toISOString() 
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -38,17 +37,72 @@ app.get("/health", (req, res) => {
 const globalAuthMiddleware = require("./middlewares/globalAuthMiddleware");
 
 //  Apply global auth middleware and tenant middleware to protected routes
-app.use("/product", globalAuthMiddleware, tenantMiddleware, require("./routes/products"));
-app.use("/category", globalAuthMiddleware, tenantMiddleware, require("./routes/categories"));
-app.use("/customer", globalAuthMiddleware, tenantMiddleware, require("./routes/customer"));
-app.use("/invoice", globalAuthMiddleware, tenantMiddleware, require("./routes/invoice"));
-app.use("/setting", globalAuthMiddleware, tenantMiddleware, require("./routes/setting"));
-app.use("/sms", globalAuthMiddleware, tenantMiddleware, require("./routes/sms"));
-app.use("/quotations", globalAuthMiddleware, tenantMiddleware, require("./routes/quotation"));
-app.use("/expenses", globalAuthMiddleware, tenantMiddleware, require("./routes/expense"));
-app.use("/purchases", globalAuthMiddleware, tenantMiddleware, require("./routes/purchase"));
-app.use("/suppliers", globalAuthMiddleware, tenantMiddleware, require("./routes/suppliers"));
-app.use("/user", globalAuthMiddleware, tenantMiddleware, require("./routes/user"));
+app.use(
+  "/product",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/products")
+);
+app.use(
+  "/category",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/categories")
+);
+app.use(
+  "/customer",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/customer")
+);
+app.use(
+  "/invoice",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/invoice")
+);
+app.use(
+  "/setting",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/setting")
+);
+app.use(
+  "/sms",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/sms")
+);
+app.use(
+  "/quotations",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/quotation")
+);
+app.use(
+  "/expenses",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/expense")
+);
+app.use(
+  "/purchases",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/purchase")
+);
+app.use(
+  "/suppliers",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/suppliers")
+);
+app.use(
+  "/user",
+  globalAuthMiddleware,
+  tenantMiddleware,
+  require("./routes/user")
+);
 
 //  Static files (e.g. images, uploads)
 app.use("/uploads", express.static(path.join(__dirname, "/uploads")));

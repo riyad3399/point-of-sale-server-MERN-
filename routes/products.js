@@ -48,12 +48,12 @@ const uploadCsv = multer({
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
-// POST- A product
+// POST - Add a product
 router.post("/", upload.single("photo"), async (req, res) => {
   try {
-    const { Product } = req.models;
-    const { PurchaseStock } = req.models;
-    const {
+    const { Product, PurchaseStock } = req.models;
+
+    let {
       productName,
       sku,
       category,
@@ -73,28 +73,48 @@ router.post("/", upload.single("photo"), async (req, res) => {
 
     const photo = req.file ? req.file.buffer : undefined;
 
+    // 🔹 Safe Number conversion
+    purchasePrice = isNaN(parseFloat(purchasePrice)) ? 0 : parseFloat(purchasePrice);
+    retailPrice = isNaN(parseFloat(retailPrice)) ? 0 : parseFloat(retailPrice);
+    wholesalePrice = isNaN(parseFloat(wholesalePrice)) ? 0 : parseFloat(wholesalePrice);
+    quantity = isNaN(parseInt(quantity)) ? 0 : parseInt(quantity);
+    alertQuantity = isNaN(parseInt(alertQuantity)) ? 0 : parseInt(alertQuantity);
+    tax = isNaN(parseFloat(tax)) ? 0 : parseFloat(tax);
+
+    // 🔹 Validate enums
+    const validUnits = ["pcs", "kg", "ltr"];
+    if (!validUnits.includes(unit)) {
+      unit = "pcs";
+    }
+
+    const validTaxTypes = ["inclusive", "exclusive"];
+    if (!validTaxTypes.includes(taxType)) {
+      taxType = "inclusive";
+    }
+
+    // 🔹 Create product
     const product = new Product({
       productName,
       productCode: sku,
       category,
       brand,
-      purchasePrice: parseFloat(purchasePrice),
-      retailPrice: parseFloat(retailPrice),
-      wholesalePrice: parseFloat(wholesalePrice),
-      quantity: parseInt(quantity),
-      alertQuantity: parseInt(alertQuantity),
+      purchasePrice,
+      retailPrice,
+      wholesalePrice,
+      quantity,
+      alertQuantity,
       unit,
-      tax: parseFloat(tax),
+      tax,
       taxType,
       color,
       size,
-      Description: description,
+      Description: description || "no description",
       photo,
     });
 
-    const savedProduct = await product.save(); // ✅ First save the product
+    const savedProduct = await product.save();
 
-    // 🟡 Now create the FIFO stock entry
+    // 🔹 FIFO stock entry
     const initialStock = new PurchaseStock({
       product: savedProduct._id,
       purchasePrice: savedProduct.purchasePrice,
@@ -113,6 +133,7 @@ router.post("/", upload.single("photo"), async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
 
 // DELETE - A product
 router.delete("/:id", async (req, res) => {

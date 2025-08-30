@@ -276,8 +276,6 @@ router.post("/register", async (req, res) => {
 });
 
 
-
-
 router.post("/refresh-token", async (req, res) => {
   const { refreshToken } = req.body;
 

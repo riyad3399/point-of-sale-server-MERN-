@@ -29,19 +29,37 @@ const getTenantModels = async (tenantDatabase) => {
   const connection = await getTenantConnection(tenantDatabase);
 
   const models = {
-    Category: connection.models.Category || connection.model("Category", categorySchema),
+    Category:
+      connection.models.Category ||
+      connection.model("Category", categorySchema),
     User: connection.models.User || connection.model("User", userSchema),
-    Product: connection.models.Product || connection.model("Product", productSchema),
-    Customer: connection.models.Customer || connection.model("Customer", customerSchema),
-    Supplier: connection.models.Supplier || connection.model("Supplier", supplierSchema),
-    Invoice: connection.models.Invoice || connection.model("Invoice", invoiceSchema),
-    Quotation: connection.models.Quotation || connection.model("Quotation", quotationSchema),
-    Expense: connection.models.Expense || connection.model("Expense", expenseSchema),
-    Purchase: connection.models.Purchase || connection.model("Purchase", purchaseSchema),
-    PurchaseStock: connection.models.PurchaseStock || connection.model("PurchaseStock", purchaseStockSchema),
-    Counter: connection.models.Counter || connection.model("Counter", counterSchema),
+    Product:
+      connection.models.Product || connection.model("Product", productSchema),
+    Customer:
+      connection.models.Customer ||
+      connection.model("Customer", customerSchema),
+    Supplier:
+      connection.models.Supplier ||
+      connection.model("Supplier", supplierSchema),
+    Invoice:
+      connection.models.Invoice || connection.model("Invoice", invoiceSchema),
+    Quotation:
+      connection.models.Quotation ||
+      connection.model("Quotation", quotationSchema),
+    Expense:
+      connection.models.Expense || connection.model("Expense", expenseSchema),
+    Purchase:
+      connection.models.Purchase ||
+      connection.model("Purchase", purchaseSchema),
+    PurchaseStock:
+      connection.models.PurchaseStock ||
+      connection.model("PurchaseStock", purchaseStockSchema),
+    Counter:
+      connection.models.Counter || connection.model("Counter", counterSchema),
     Role: connection.models.Role || connection.model("Role", roleSchema),
-    Setting: connection.models.Setting || connection.model("Setting", storeSettingSchema),
+    Setting:
+      connection.models.Setting ||
+      connection.model("Setting", storeSettingSchema),
   };
 
   modelCache[tenantDatabase] = {
@@ -56,11 +74,11 @@ const clearModelCache = (tenantDatabase) => {
   if (tenantDatabase) {
     delete modelCache[tenantDatabase];
   } else {
-    Object.keys(modelCache).forEach(key => delete modelCache[key]);
+    Object.keys(modelCache).forEach((key) => delete modelCache[key]);
   }
 };
 
-module.exports = { 
+module.exports = {
   getTenantModels,
   clearModelCache,
 };
