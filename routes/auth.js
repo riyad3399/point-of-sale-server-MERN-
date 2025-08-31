@@ -129,6 +129,7 @@ router.post("/login", async (req, res) => {
   }
 });
 
+
 router.post("/register", async (req, res) => {
   const {
     userName,
@@ -274,6 +275,68 @@ router.post("/register", async (req, res) => {
     });
   }
 });
+
+router.post("/create-tenant-user", async (req, res) => {
+  const { userName, password, role, tenantId } = req.body;
+
+  try {
+    if (!userName || !password || !role || !tenantId) {
+      return res.status(400).json({ success: false, message: "Required fields missing" });
+    }
+
+    const { GlobalUser, Tenant } = await getGlobalModels();
+    const tenant = await Tenant.findOne({ tenantId });
+    if (!tenant) return res.status(400).json({ success: false, message: "Tenant not found" });
+
+
+
+    // Check for duplicate username/email
+    const existingGlobal = await GlobalUser.findOne({
+      $or: [{ userName: userName.toLowerCase() }],
+    });
+    if (existingGlobal) return res.status(400).json({ success: false, message: "User already exists" });
+
+    const globalUser = new GlobalUser({
+      userName: userName.toLowerCase(),
+      password: password, // store plain, hashed in tenant DB
+      tenantId: tenant.tenantId,
+      tenantDatabase: tenant.databaseName,
+      isSuperAdmin: false,
+    });
+
+    await globalUser.save();
+
+    // Tenant DB user
+    const tenantModels = await getTenantModels(tenant.databaseName);
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const tenantUser = new tenantModels.User({
+      userName: userName.toLowerCase(),
+      password: hashedPassword,
+      role,
+      permissions: role === "manager" ? generateAllPermissions(false) : {},
+    });
+
+    await tenantUser.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Tenant user created successfully",
+      user: {
+        id: globalUser._id,
+        userName: globalUser.userName,
+        tenantId: globalUser.tenantId,
+        role: tenantUser.role,
+      },
+    });
+  } catch (err) {
+    console.error("Create tenant user error:", err);
+    res.status(500).json({ success: false, message: "Server error", error: err.message });
+  }
+});
+
+
+
 
 
 router.post("/refresh-token", async (req, res) => {
