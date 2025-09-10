@@ -45,8 +45,18 @@ const uploadCsv = multer({
 });
 
 // Multer setup
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = path.join(__dirname, "../uploads");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir); 
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
+});
+
+const upload = multer({ storage });
 
 // POST - Add a product
 router.post("/", upload.single("photo"), async (req, res) => {
@@ -71,14 +81,23 @@ router.post("/", upload.single("photo"), async (req, res) => {
       description,
     } = req.body;
 
-    const photo = req.file ? req.file.buffer : undefined;
+    // 📌 এখন photo binary নয়, file path/URL save হবে
+    const photo = req.file
+      ? `/uploads/${req.file.filename}`
+      : "https://yourcdn.com/default.png";
 
     // 🔹 Safe Number conversion
-    purchasePrice = isNaN(parseFloat(purchasePrice)) ? 0 : parseFloat(purchasePrice);
+    purchasePrice = isNaN(parseFloat(purchasePrice))
+      ? 0
+      : parseFloat(purchasePrice);
     retailPrice = isNaN(parseFloat(retailPrice)) ? 0 : parseFloat(retailPrice);
-    wholesalePrice = isNaN(parseFloat(wholesalePrice)) ? 0 : parseFloat(wholesalePrice);
+    wholesalePrice = isNaN(parseFloat(wholesalePrice))
+      ? 0
+      : parseFloat(wholesalePrice);
     quantity = isNaN(parseInt(quantity)) ? 0 : parseInt(quantity);
-    alertQuantity = isNaN(parseInt(alertQuantity)) ? 0 : parseInt(alertQuantity);
+    alertQuantity = isNaN(parseInt(alertQuantity))
+      ? 0
+      : parseInt(alertQuantity);
     tax = isNaN(parseFloat(tax)) ? 0 : parseFloat(tax);
 
     // 🔹 Validate enums
@@ -109,7 +128,7 @@ router.post("/", upload.single("photo"), async (req, res) => {
       color,
       size,
       Description: description || "no description",
-      photo,
+      photo, // এখন photo = URL string
     });
 
     const savedProduct = await product.save();
@@ -133,6 +152,8 @@ router.post("/", upload.single("photo"), async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
+
 
 
 // DELETE - A product
@@ -211,10 +232,9 @@ router.get("/low-stock", async (req, res) => {
 // GET - All products
 router.get("/", async (req, res) => {
   try {
-    const { Product } = req.models;
-    const { PurchaseStock } = req.models;
+    const { Product, PurchaseStock } = req.models;
 
-    const products = await Product.find().select("-photo").lean();
+    const products = await Product.find().lean();
 
     const fifoProducts = await Promise.all(
       products.map(async (product) => {
@@ -222,7 +242,7 @@ router.get("/", async (req, res) => {
           product: product._id,
           remainingQuantity: { $gt: 0 },
         })
-          .sort({ purchaseDate: 1 }) // FIFO
+          .sort({ purchaseDate: 1 }) 
           .select(
             "purchasePrice retailPrice wholesalePrice remainingQuantity purchaseDate -_id"
           )
@@ -230,7 +250,7 @@ router.get("/", async (req, res) => {
 
         return {
           ...product,
-          fifoStock: stockEntries, // 🔁 now includes retail & wholesale price from stock entry
+          fifoStock: stockEntries,
         };
       })
     );
@@ -243,6 +263,7 @@ router.get("/", async (req, res) => {
       .json({ message: "Failed to fetch products with FIFO stock" });
   }
 });
+
 
 // GET - single product
 router.get("/:id", async (req, res) => {

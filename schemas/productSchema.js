@@ -30,7 +30,7 @@ const productSchema = mongoose.Schema(
 
     unit: {
       type: String,
-      enum: ["pcs", "kg", "ltr"], // ✅ এখন default enum-এর ভেতরে
+      enum: ["pcs", "kg", "ltr"],
       default: "pcs",
     },
 
@@ -44,7 +44,7 @@ const productSchema = mongoose.Schema(
 
     description: { type: String, default: "no description" },
 
-    photo: { type: Buffer }, // image binary
+    photo: { type: String, default: "/uploads/default.png" },
 
     size: { type: String, trim: true, default: "no size" },
     color: { type: String, trim: true, lowercase: true, default: "no color" },
