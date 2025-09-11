@@ -1,10 +1,10 @@
-// routes/supplierRoutes.js
 const express = require("express");
 const router = express.Router();
 
 // Add New Supplier Route
 router.post("/add", async (req, res) => {
   try {
+    
     const { Supplier } = req.models;
     const { name, phone, email, address } = req.body;
 

@@ -2,47 +2,153 @@ const express = require("express");
 const router = express.Router();
 
 //POST - A new purchase
+// router.post("/add", async (req, res) => {
+//   console.log(req.body);
+//   try {
+//     const { Supplier } = req.models;
+//     const { Product } = req.models;
+//     const { PurchaseStock } = req.models;
+//     const { Purchase } = req.models;
+
+//     const {
+//       supplier,
+//       supplierId,
+//       items,
+//       total,
+//       discountPercent,
+//       discount,
+//       shippingCost,
+//       grandTotal,
+//       paid,
+//       due,
+//       paymentMethod,
+//       status,
+//       dueDate,
+//       purchaseDate,
+//     } = req.body;
+
+//     // Validation
+//     if (!supplierId || !Array.isArray(items) || items.length === 0) {
+//       return res.status(400).json({ message: "Invalid purchase data" });
+//     }
+
+//     // Check supplier existence
+//     const supplierData = await Supplier.findById(supplierId);
+//     if (!supplierData) {
+//       return res.status(404).json({ message: "Supplier not found" });
+//     }
+
+//     const purchaseItems = [];
+
+//     for (const item of items) {
+//       const { product, quantity, purchasePrice, retailPrice, wholesalePrice } =
+//         item;
+
+//       const productData = await Product.findById(product);
+//       if (!productData) {
+//         return res
+//           .status(404)
+//           .json({ message: `Product not found: ${product}` });
+//       }
+
+//       // Update stock and prices
+//       productData.quantity += quantity;
+//       productData.purchasePrice = purchasePrice;
+//       if (retailPrice !== undefined) productData.retailPrice = retailPrice;
+//       if (wholesalePrice !== undefined)
+//         productData.wholesalePrice = wholesalePrice;
+//       await productData.save();
+
+//       purchaseItems.push({
+//         product,
+//         quantity,
+//         purchasePrice,
+//         retailPrice,
+//         wholesalePrice,
+//       });
+
+//       // Create FIFO stock entry
+//       await new PurchaseStock({
+//         product,
+//         purchasePrice,
+//         quantity,
+//         remainingQuantity: quantity,
+//         purchaseDate: new Date(purchaseDate),
+//         retailPrice,
+//         wholesalePrice,
+//       }).save();
+//     }
+    
+
+//     // Final Save
+//     const newPurchase = new Purchase({
+//       supplier,
+//       supplierId,
+//       items: purchaseItems,
+//       total,
+//       discountPercent,
+//       discount,
+//       transportCost: shippingCost,
+//       grandTotal,
+//       paid,
+//       due,
+//       paymentMethod,
+//       status,
+//       dueDate,
+//       purchaseDate,
+//     });
+
+//     await newPurchase.save();
+
+//     res.status(201).json({
+//       message: "Purchase added successfully",
+//       purchase: newPurchase,
+//     });
+//   } catch (error) {
+//     res.status(500).json({
+//       message: "Something went wrong",
+//       error: error.message,
+//     });
+//   }
+// });
 router.post("/add", async (req, res) => {
   try {
-    const { Supplier } = req.models;
-    const { Product } = req.models;
-    const { PurchaseStock } = req.models;
-    const { Purchase } = req.models;
+    const { Supplier, Product, PurchaseStock, Purchase } = req.models;
 
     const {
-      supplier,
       supplierId,
       items,
       total,
-      discountPercent,
-      discount,
-      shippingCost,
+      discountPercent = 0,
+      discount = 0,
+      shippingCost = 0,
       grandTotal,
-      paid,
-      due,
+      paid = 0,
+      due = 0,
       paymentMethod,
-      status,
+      status = "Order",
       dueDate,
       purchaseDate,
     } = req.body;
 
-    // Validation
+    // 1️⃣ Basic validation
     if (!supplierId || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Invalid purchase data" });
     }
 
-    // Check supplier existence
+    // 2️⃣ Supplier check
     const supplierData = await Supplier.findById(supplierId);
     if (!supplierData) {
       return res.status(404).json({ message: "Supplier not found" });
     }
 
+    // 3️⃣ Process items
     const purchaseItems = [];
-
     for (const item of items) {
       const { product, quantity, purchasePrice, retailPrice, wholesalePrice } =
         item;
 
+      // Product existence check
       const productData = await Product.findById(product);
       if (!productData) {
         return res
@@ -50,7 +156,7 @@ router.post("/add", async (req, res) => {
           .json({ message: `Product not found: ${product}` });
       }
 
-      // Update stock and prices
+      // Update product stock & prices
       productData.quantity += quantity;
       productData.purchasePrice = purchasePrice;
       if (retailPrice !== undefined) productData.retailPrice = retailPrice;
@@ -58,6 +164,7 @@ router.post("/add", async (req, res) => {
         productData.wholesalePrice = wholesalePrice;
       await productData.save();
 
+      // Prepare purchaseItems array
       purchaseItems.push({
         product,
         quantity,
@@ -66,21 +173,20 @@ router.post("/add", async (req, res) => {
         wholesalePrice,
       });
 
-      // Create FIFO stock entry
+      // FIFO stock entry
       await new PurchaseStock({
         product,
         purchasePrice,
         quantity,
         remainingQuantity: quantity,
-        purchaseDate: new Date(purchaseDate),
+        purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
         retailPrice,
         wholesalePrice,
       }).save();
     }
 
-    // Final Save
+    // 4️⃣ Prepare final purchase object
     const newPurchase = new Purchase({
-      supplier,
       supplierId,
       items: purchaseItems,
       total,
@@ -92,8 +198,8 @@ router.post("/add", async (req, res) => {
       due,
       paymentMethod,
       status,
-      dueDate,
-      purchaseDate,
+      dueDate: dueDate ? new Date(dueDate) : null,
+      purchaseDate: purchaseDate ? new Date(purchaseDate) : new Date(),
     });
 
     await newPurchase.save();
@@ -103,8 +209,9 @@ router.post("/add", async (req, res) => {
       purchase: newPurchase,
     });
   } catch (error) {
+    console.error("Error adding purchase:", error);
     res.status(500).json({
-      message: "Something went wrong",
+      message: "Server error while adding purchase",
       error: error.message,
     });
   }

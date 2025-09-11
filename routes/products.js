@@ -81,12 +81,10 @@ router.post("/", upload.single("photo"), async (req, res) => {
       description,
     } = req.body;
 
-    // 📌 এখন photo binary নয়, file path/URL save হবে
     const photo = req.file
       ? `/uploads/${req.file.filename}`
       : "https://yourcdn.com/default.png";
 
-    // 🔹 Safe Number conversion
     purchasePrice = isNaN(parseFloat(purchasePrice))
       ? 0
       : parseFloat(purchasePrice);
@@ -100,7 +98,6 @@ router.post("/", upload.single("photo"), async (req, res) => {
       : parseInt(alertQuantity);
     tax = isNaN(parseFloat(tax)) ? 0 : parseFloat(tax);
 
-    // 🔹 Validate enums
     const validUnits = ["pcs", "kg", "ltr"];
     if (!validUnits.includes(unit)) {
       unit = "pcs";
@@ -111,7 +108,6 @@ router.post("/", upload.single("photo"), async (req, res) => {
       taxType = "inclusive";
     }
 
-    // 🔹 Create product
     const product = new Product({
       productName,
       productCode: sku,
@@ -128,12 +124,12 @@ router.post("/", upload.single("photo"), async (req, res) => {
       color,
       size,
       Description: description || "no description",
-      photo, // এখন photo = URL string
+      photo, 
     });
 
     const savedProduct = await product.save();
 
-    // 🔹 FIFO stock entry
+    //  FIFO stock entry
     const initialStock = new PurchaseStock({
       product: savedProduct._id,
       purchasePrice: savedProduct.purchasePrice,
@@ -176,23 +172,42 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
   try {
     const { Product } = req.models;
 
-    const { quantity, purchasePrice, ...restUpdates } = req.body;
-    const updates = { ...restUpdates };
+    const updates = { ...req.body };
 
+
+    // photo থাকলে আপডেট
     if (req.file) {
-      updates.photo = req.file.buffer;
+      updates.photo = `/uploads/${req.file.filename}`;
     }
 
-    if (quantity) {
-      return res.status(400).json({
-        message:
-          "You cannot directly update quantity. Please use the purchase system to adjust stock.",
-      });
+    // খালি string remove করা
+    Object.keys(updates).forEach((key) => {
+      if (updates[key] === "" || updates[key] === null) {
+        delete updates[key];
+      }
+    });
+
+    //  quantity remove করা (user update করতে পারবে না)
+    if (updates.quantity !== undefined) {
+      delete updates.quantity;
     }
 
-    if (purchasePrice) {
-      updates.purchasePrice = parseFloat(purchasePrice);
-    }
+    // সংখ্যা safe conversion
+    if (updates.purchasePrice !== undefined)
+      updates.purchasePrice = parseFloat(updates.purchasePrice);
+
+    if (updates.retailPrice !== undefined)
+      updates.retailPrice = parseFloat(updates.retailPrice);
+
+    if (updates.wholesalePrice !== undefined)
+      updates.wholesalePrice = parseFloat(updates.wholesalePrice);
+
+    if (updates.tax !== undefined) updates.tax = parseFloat(updates.tax);
+
+    if (updates.alertQuantity !== undefined)
+      updates.alertQuantity = parseInt(updates.alertQuantity);
+
+    console.log("🔹 After cleaning:", updates);
 
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
@@ -204,7 +219,10 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    res.status(200).json(updatedProduct);
+    res.status(200).json({
+      message: "Product updated successfully",
+      product: updatedProduct,
+    });
   } catch (err) {
     console.error("Product update error:", err.message);
     res
@@ -212,6 +230,7 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
       .json({ message: "Failed to update product", error: err.message });
   }
 });
+
 
 // GET - low stock Product
 router.get("/low-stock", async (req, res) => {

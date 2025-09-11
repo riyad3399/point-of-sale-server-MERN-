@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
-const Counter = require("../schemas/counterSchema");
+
+
+
 
 const purchaseItemSchema = new mongoose.Schema({
   product: {
@@ -103,7 +105,7 @@ const purchaseSchema = new mongoose.Schema(
     },
     receivedDate: Date,
 
-    // 📅 Dates
+    //  Dates
     purchaseDate: { type: Date, default: Date.now },
     dueDate: { type: Date },
   },
@@ -115,6 +117,8 @@ purchaseSchema.pre("save", async function (next) {
   if (!this.isNew || this.invoiceNumber) return next();
 
   try {
+    // use the same connection's Counter model
+    const Counter = this.db.model("Counter"); // this.db points to the current connection
     const counter = await Counter.findOneAndUpdate(
       { name: "purchaseInvoice" },
       { $inc: { value: 1 } },
@@ -127,5 +131,6 @@ purchaseSchema.pre("save", async function (next) {
     next(err);
   }
 });
+
 
 module.exports = purchaseSchema;
