@@ -18,7 +18,6 @@ const generateUniqueCode = async (Product) => {
   return code;
 };
 
-
 // Storage for CSV files (on disk)
 const storageCsv = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -47,7 +46,7 @@ const uploadCsv = multer({
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const uploadDir = path.join(__dirname, "../uploads");
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir); 
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
@@ -123,7 +122,7 @@ router.post("/", upload.single("photo"), async (req, res) => {
       color,
       size,
       Description: description || "no description",
-      photo, 
+      photo,
     });
 
     const savedProduct = await product.save();
@@ -148,9 +147,6 @@ router.post("/", upload.single("photo"), async (req, res) => {
   }
 });
 
-
-
-
 // DELETE - A product
 router.delete("/:id", async (req, res) => {
   try {
@@ -172,7 +168,6 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
     const { Product } = req.models;
 
     const updates = { ...req.body };
-
 
     // photo থাকলে আপডেট
     if (req.file) {
@@ -230,7 +225,6 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
   }
 });
 
-
 // GET - low stock Product
 router.get("/low-stock", async (req, res) => {
   try {
@@ -260,7 +254,7 @@ router.get("/", async (req, res) => {
           product: product._id,
           remainingQuantity: { $gt: 0 },
         })
-          .sort({ purchaseDate: 1 }) 
+          .sort({ purchaseDate: 1 })
           .select(
             "purchasePrice retailPrice wholesalePrice remainingQuantity purchaseDate -_id"
           )
@@ -281,7 +275,6 @@ router.get("/", async (req, res) => {
       .json({ message: "Failed to fetch products with FIFO stock" });
   }
 });
-
 
 // GET - single product
 router.get("/:id", async (req, res) => {
@@ -318,9 +311,9 @@ router.get("/image/:id", async (req, res) => {
 // CSV Upload Route
 router.post("/upload-csv", uploadCsv.single("csv"), async (req, res) => {
   try {
-    const { Product } = req.models;
+    const { Product, PurchaseStock } = req.models; // PurchaseStock model add
     if (!req.file) {
-      return res.status(400).json({ message: "CSV ফাইল পাওয়া যায়নি" });
+      return res.status(400).json({ message: "CSV File Not Found!" });
     }
 
     const filePath = req.file.path;
@@ -333,58 +326,77 @@ router.post("/upload-csv", uploadCsv.single("csv"), async (req, res) => {
       })
       .on("end", async () => {
         try {
-          const results = [];
-
           for (const row of parsedData) {
-            const productCode = await generateUniqueCode(Product); 
+            const productCode = await generateUniqueCode(Product);
 
-            results.push({
+            const parseNumber = (val) => {
+              const num = Number(String(val).trim());
+              return isNaN(num) ? 0 : num;
+            };
+
+            // 1️⃣ Create product
+            const newProduct = new Product({
               productName: row.productName,
               productCode,
               category: row.category,
               brand: row.brand,
-              purchasePrice: Number(row.purchasePrice),
-              retailPrice: Number(row.retailPrice),
-              wholesalePrice: Number(row.wholesalePrice),
-              quantity: Number(row.quantity),
-              alertQuantity: Number(row.alertQuantity),
+              purchasePrice: parseNumber(row.purchasePrice),
+              retailPrice: parseNumber(row.retailPrice),
+              wholesalePrice: parseNumber(row.wholesalePrice),
+              quantity: parseNumber(row.quantity),
+              alertQuantity: parseNumber(row.alertQuantity),
               unit: row.unit,
-              tax: Number(row.tax),
+              tax: parseNumber(row.tax),
               taxType: row.taxType,
               color: row.color?.toLowerCase(),
               size: row.size,
-              Description: row.Description,
+              description: row.Description,
             });
+
+            const savedProduct = await newProduct.save();
+
+            // 2️⃣ Create initial purchaseStock for CSV quantity
+            if (parseNumber(row.quantity) > 0) {
+              await PurchaseStock.create({
+                product: savedProduct._id,
+                purchasePrice: parseNumber(row.purchasePrice),
+                retailPrice: parseNumber(row.retailPrice),
+                wholesalePrice: parseNumber(row.wholesalePrice),
+                quantity: parseNumber(row.quantity),
+                remainingQuantity: parseNumber(row.quantity),
+                purchaseDate: new Date(),
+              });
+            }
           }
 
-          const inserted = await Product.insertMany(results);
           fs.unlinkSync(filePath);
           res.status(201).json({
-            message: `${inserted.length} টি প্রোডাক্ট সফলভাবে যুক্ত হয়েছে`,
+            message: `${parsedData.length} products added successfully`,
           });
         } catch (err) {
-          console.error("❌ MongoDB insert error:", err);
+          console.error("MongoDB insert error:", err);
           res.status(500).json({
-            message: "ডেটা ইনসার্টে সমস্যা হয়েছে",
+            message: "database insert error",
             error: err.message,
           });
         }
       })
       .on("error", (err) => {
-        console.error("❌ CSV Parse Error:", err);
+        console.error("CSV Parse Error:", err);
         fs.unlinkSync(filePath);
         res.status(500).json({
-          message: "CSV ফাইল প্রসেসে সমস্যা হয়েছে",
+          message: "CSV file parse error",
           error: err.message,
         });
       });
   } catch (err) {
-    console.error("❌ CSV Upload Error:", err);
+    console.error("CSV Upload Error:", err);
     res.status(500).json({
-      message: "সার্ভারে সমস্যা হয়েছে",
+      message: "server error",
       error: err.message,
     });
   }
 });
+
 
 module.exports = router;

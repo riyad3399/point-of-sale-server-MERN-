@@ -117,8 +117,7 @@ purchaseSchema.pre("save", async function (next) {
   if (!this.isNew || this.invoiceNumber) return next();
 
   try {
-    // use the same connection's Counter model
-    const Counter = this.db.model("Counter"); // this.db points to the current connection
+    const Counter = this.db.model("Counter"); 
     const counter = await Counter.findOneAndUpdate(
       { name: "purchaseInvoice" },
       { $inc: { value: 1 } },
