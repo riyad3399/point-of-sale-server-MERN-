@@ -5,6 +5,9 @@ const router = express.Router();
 const { getGlobalModels } = require("../db/globalConnection");
 const { getTenantModels } = require("../model/tenantModels");
 const globalAuthMiddleware = require("../middlewares/globalAuthMiddleware");
+const tenantMiddleware = require("../middlewares/tenantMiddleware");
+const { getTenantConnection } = require("../db/connectionManager");
+
 
 const saltRounds = 10;
 
@@ -336,9 +339,6 @@ router.post("/create-tenant-user", async (req, res) => {
 });
 
 
-
-
-
 router.post("/refresh-token", async (req, res) => {
   const { refreshToken } = req.body;
 
@@ -451,9 +451,47 @@ router.get("/count", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
+// PUT /auth/:id → update user role & permissions
+router.put("/:id", globalAuthMiddleware, async (req, res) => {
+  try {
+    const tenantId = req.globalUser?.tenantId || req.headers["x-tenant-id"];
+    if (!tenantId) {
+      return res.status(400).json({ message: "Tenant ID missing" });
+    }
 
+    const { Tenant } = await getGlobalModels();
+    const tenant = await Tenant.findOne({ tenantId });
+    if (!tenant) return res.status(400).json({ message: "Invalid tenant ID" });
+
+    const tenantDbName = tenant.databaseName;
+
+    const connection = await getTenantConnection(tenantDbName);
+
+    const User =
+      connection.model("User") || connection.model("User", userSchema);
+
+    const { id } = req.params;
+    const { role, permissions } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      id,
+      { role, permissions },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ success: true, user: updatedUser });
+  } catch (err) {
+    console.error("Error updating user:", err);
+    res.status(500).json({ message: "Failed to update user" });
+  }
 });
+
+
+
 
 function generateAllPermissions(isAllowed) {
   const crudPermission = {

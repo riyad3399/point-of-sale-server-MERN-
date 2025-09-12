@@ -17,6 +17,7 @@ const storeSettingSchema = require("../schemas/storeSettingSchema");
 const modelCache = {};
 
 const getTenantModels = async (tenantDatabase) => {
+
   if (modelCache[tenantDatabase]) {
     const connection = modelCache[tenantDatabase].connection;
     if (connection.readyState === 1) {
