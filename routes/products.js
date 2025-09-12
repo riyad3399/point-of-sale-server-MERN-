@@ -5,13 +5,11 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 
-const generateUniqueCode = async () => {
+const generateUniqueCode = async (Product) => {
   let code;
   let exists = true;
 
   while (exists) {
-    const { Product } = req.models;
-
     code = Math.floor(100000 + Math.random() * 900000).toString();
     const product = await Product.findOne({ productCode: code });
     if (!product) exists = false;
@@ -19,6 +17,7 @@ const generateUniqueCode = async () => {
 
   return code;
 };
+
 
 // Storage for CSV files (on disk)
 const storageCsv = multer.diskStorage({
@@ -337,7 +336,7 @@ router.post("/upload-csv", uploadCsv.single("csv"), async (req, res) => {
           const results = [];
 
           for (const row of parsedData) {
-            const productCode = await generateUniqueCode(); // 🔐 Unique code
+            const productCode = await generateUniqueCode(Product); 
 
             results.push({
               productName: row.productName,
