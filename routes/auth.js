@@ -5,8 +5,9 @@ const router = express.Router();
 const { getGlobalModels } = require("../db/globalConnection");
 const { getTenantModels } = require("../model/tenantModels");
 const globalAuthMiddleware = require("../middlewares/globalAuthMiddleware");
-const tenantMiddleware = require("../middlewares/tenantMiddleware");
 const { getTenantConnection } = require("../db/connectionManager");
+const { roleMiddleware } = require("../middlewares/roleMiddleware");
+const authMiddleware = require("../middlewares/authMiddleware");
 
 
 const saltRounds = 10;
@@ -17,11 +18,13 @@ const generateToken = (user) => {
       id: user._id,
       userName: user.userName,
       tenantId: user.tenantId,
+      role: user.role, 
     },
     process.env.SECRET_KEY,
     { expiresIn: "7d" }
   );
 };
+
 
 const generateRefreshToken = (user) => {
   return jwt.sign(
@@ -451,6 +454,11 @@ router.get("/count", async (req, res) => {
   }
 });
 
+
+
+
+
+
 // PUT /auth/:id → update user role & permissions
 router.put("/:id", globalAuthMiddleware, async (req, res) => {
   try {
@@ -489,6 +497,31 @@ router.put("/:id", globalAuthMiddleware, async (req, res) => {
     res.status(500).json({ message: "Failed to update user" });
   }
 });
+
+
+// PATCH - Developer changes any user's password
+router.patch(
+  "/:userId/password",
+  authMiddleware,
+  roleMiddleware(["developer"]),
+  async (req, res) => {
+    try {
+      const { newPassword } = req.body;
+      const {User} = await getTenantModels(req.tenant.databaseName);
+      if (!newPassword)
+        return res.status(400).json({ message: "Password required" });
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await User.findByIdAndUpdate(req.params.userId, {
+        password: hashedPassword,
+      });
+
+      res.json({ message: "Password updated successfully" });
+    } catch (err) {
+      res.status(500).json({ message: "Server error", error: err });
+    }
+  }
+);
 
 
 

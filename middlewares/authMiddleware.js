@@ -14,7 +14,7 @@ const authMiddleware = (req, res, next) => {
       token,
       process.env.SECRET_KEY || "your_jwt_secret"
     );
-    req.user = decoded; // ডিকোড করা তথ্য req.user এ রেখে দেওয়া হলো
+    req.user = decoded; 
     next();
   } catch (error) {
     return res.status(401).json({ message: "Invalid or expired token" });

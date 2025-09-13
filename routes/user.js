@@ -94,6 +94,64 @@ router.get("/:tenantId", async (req, res) => {
   }
 });
 
+router.delete("/:tenantId/delete/:userId", async (req, res) => {
+  try {
+    const { tenantId, userId } = req.params;
+    const { userName } = req.body;
+
+    // 1️⃣ Global database থেকে tenant check
+    const { Tenant, GlobalUser } = await getGlobalModels();
+    const tenant = await Tenant.findOne({ tenantId });
+    if (!tenant) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Tenant not found" });
+    }
+
+    const tenantModels = await getTenantModels(tenant.databaseName);
+
+    const tenantUser = await tenantModels.User.findById(userId);
+    if (!tenantUser) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    if (tenantUser.role === "developer") {
+      return res
+        .status(403)
+        .json({
+          success: false,
+          message: "Developer role users cannot be deleted",
+        });
+    }
+
+    const deletedTenantUser = await tenantModels.User.findByIdAndDelete(userId);
+
+    const deletedGlobalUser = await GlobalUser.findOneAndDelete({
+      userName: userName.toLowerCase(),
+      tenantId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "User deleted successfully from tenant and global database",
+      tenantUser: deletedTenantUser,
+      globalUser: deletedGlobalUser,
+    });
+  } catch (error) {
+    console.error("Delete Tenant & Global User Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error deleting user",
+      error: error.message,
+    });
+  }
+});
+
+
+
+
 
 
 function generateAllPermissions(isAllowed) {
