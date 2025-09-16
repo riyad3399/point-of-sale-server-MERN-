@@ -9,7 +9,7 @@ const globalUserSchema = new mongoose.Schema({
     trim: true,
     lowercase: true,
   },
-  
+
   password: {
     type: String,
     required: true,
@@ -19,6 +19,10 @@ const globalUserSchema = new mongoose.Schema({
     type: String,
     required: true,
     index: true,
+  },
+  role: {
+    type: String,
+    default: "user", 
   },
 
   tenantDatabase: {

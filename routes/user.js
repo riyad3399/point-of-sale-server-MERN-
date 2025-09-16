@@ -118,12 +118,10 @@ router.delete("/:tenantId/delete/:userId", async (req, res) => {
     }
 
     if (tenantUser.role === "developer") {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          message: "Developer role users cannot be deleted",
-        });
+      return res.status(403).json({
+        success: false,
+        message: "Developer role users cannot be deleted",
+      });
     }
 
     const deletedTenantUser = await tenantModels.User.findByIdAndDelete(userId);
@@ -148,11 +146,6 @@ router.delete("/:tenantId/delete/:userId", async (req, res) => {
     });
   }
 });
-
-
-
-
-
 
 function generateAllPermissions(isAllowed) {
   const crudPermission = {

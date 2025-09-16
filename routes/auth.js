@@ -6,9 +6,6 @@ const { getGlobalModels } = require("../db/globalConnection");
 const { getTenantModels } = require("../model/tenantModels");
 const globalAuthMiddleware = require("../middlewares/globalAuthMiddleware");
 const { getTenantConnection } = require("../db/connectionManager");
-const { roleMiddleware } = require("../middlewares/roleMiddleware");
-const authMiddleware = require("../middlewares/authMiddleware");
-
 
 const saltRounds = 10;
 
@@ -18,13 +15,12 @@ const generateToken = (user) => {
       id: user._id,
       userName: user.userName,
       tenantId: user.tenantId,
-      role: user.role, 
+      role: user.role,
     },
     process.env.SECRET_KEY,
     { expiresIn: "7d" }
   );
 };
-
 
 const generateRefreshToken = (user) => {
   return jwt.sign(
@@ -135,7 +131,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-
 router.post("/register", async (req, res) => {
   const {
     userName,
@@ -218,6 +213,7 @@ router.post("/register", async (req, res) => {
     const globalUser = new GlobalUser({
       userName: userName.toLowerCase(),
       password: password,
+      role: isNewTenant ? "developer" : "manager",
       tenantId: tenant.tenantId,
       tenantDatabase: tenant.databaseName,
       isSuperAdmin: isNewTenant,
@@ -287,20 +283,26 @@ router.post("/create-tenant-user", async (req, res) => {
 
   try {
     if (!userName || !password || !role || !tenantId) {
-      return res.status(400).json({ success: false, message: "Required fields missing" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Required fields missing" });
     }
 
     const { GlobalUser, Tenant } = await getGlobalModels();
     const tenant = await Tenant.findOne({ tenantId });
-    if (!tenant) return res.status(400).json({ success: false, message: "Tenant not found" });
-
-
+    if (!tenant)
+      return res
+        .status(400)
+        .json({ success: false, message: "Tenant not found" });
 
     // Check for duplicate username/email
     const existingGlobal = await GlobalUser.findOne({
       $or: [{ userName: userName.toLowerCase() }],
     });
-    if (existingGlobal) return res.status(400).json({ success: false, message: "User already exists" });
+    if (existingGlobal)
+      return res
+        .status(400)
+        .json({ success: false, message: "User already exists" });
 
     const globalUser = new GlobalUser({
       userName: userName.toLowerCase(),
@@ -337,10 +339,11 @@ router.post("/create-tenant-user", async (req, res) => {
     });
   } catch (err) {
     console.error("Create tenant user error:", err);
-    res.status(500).json({ success: false, message: "Server error", error: err.message });
+    res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
   }
 });
-
 
 router.post("/refresh-token", async (req, res) => {
   const { refreshToken } = req.body;
@@ -454,11 +457,6 @@ router.get("/count", async (req, res) => {
   }
 });
 
-
-
-
-
-
 // PUT /auth/:id → update user role & permissions
 router.put("/:id", globalAuthMiddleware, async (req, res) => {
   try {
@@ -498,32 +496,84 @@ router.put("/:id", globalAuthMiddleware, async (req, res) => {
   }
 });
 
-
-// PATCH - Developer changes any user's password
-router.patch(
-  "/:userId/password",
-  authMiddleware,
-  roleMiddleware(["developer"]),
+// PUT - Change Password
+router.put(
+  "/change-password/:userName",
+  globalAuthMiddleware,
   async (req, res) => {
+    const { userName } = req.params;
+    const { newPassword } = req.body;
+
+    const currentUser = req.globalUser; 
+
     try {
-      const { newPassword } = req.body;
-      const {User} = await getTenantModels(req.tenant.databaseName);
-      if (!newPassword)
-        return res.status(400).json({ message: "Password required" });
+      if (!userName || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: "userName এবং newPassword প্রয়োজন",
+        });
+      }
 
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await User.findByIdAndUpdate(req.params.userId, {
-        password: hashedPassword,
+      const { GlobalUser, Tenant } = await getGlobalModels();
+
+      // GlobalUser থেকে target user খোঁজা
+      const targetUser = await GlobalUser.findOne({
+        userName: userName.toLowerCase(),
       });
+      if (!targetUser) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User Not Found!" });
+      }
 
-      res.json({ message: "Password updated successfully" });
+      // Role check: developer হলে অন্যের password change করতে পারবে
+      if (
+        currentUser.role !== "developer" &&
+        currentUser.userName !== userName
+      ) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not authorized to change this user's password",
+        });
+      }
+
+      // Tenant খোঁজা
+      const tenant = await Tenant.findOne({ tenantId: targetUser.tenantId });
+      if (!tenant) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Tenant Not Found!" });
+      }
+
+      // Tenant DB থেকে user খোঁজা
+      const tenantModels = await getTenantModels(tenant.databaseName);
+      const tenantUser = await tenantModels.User.findOne({
+        userName: userName.toLowerCase(),
+      });
+      if (!tenantUser) {
+        return res
+          .status(404)
+          .json({ success: false, message: "User Not Found in Tenant DB!" });
+      }
+
+      // নতুন password hash করে update
+      const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+      targetUser.password = hashedNewPassword;
+      await targetUser.save();
+
+      tenantUser.password = hashedNewPassword;
+      await tenantUser.save();
+
+      res.json({ success: true, message: "Password Changed Successfully!" });
     } catch (err) {
-      res.status(500).json({ message: "Server error", error: err });
+      console.error("Change password error:", err);
+      res
+        .status(500)
+        .json({ success: false, message: "Server error", error: err.message });
     }
   }
 );
-
-
 
 
 function generateAllPermissions(isAllowed) {
@@ -587,6 +637,5 @@ function generateAllPermissions(isAllowed) {
     },
   };
 }
-
 
 module.exports = router;
