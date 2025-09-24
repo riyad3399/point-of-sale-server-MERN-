@@ -1,122 +1,15 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 
-//POST - A new purchase
-// router.post("/add", async (req, res) => {
-//   console.log(req.body);
-//   try {
-//     const { Supplier } = req.models;
-//     const { Product } = req.models;
-//     const { PurchaseStock } = req.models;
-//     const { Purchase } = req.models;
-
-//     const {
-//       supplier,
-//       supplierId,
-//       items,
-//       total,
-//       discountPercent,
-//       discount,
-//       shippingCost,
-//       grandTotal,
-//       paid,
-//       due,
-//       paymentMethod,
-//       status,
-//       dueDate,
-//       purchaseDate,
-//     } = req.body;
-
-//     // Validation
-//     if (!supplierId || !Array.isArray(items) || items.length === 0) {
-//       return res.status(400).json({ message: "Invalid purchase data" });
-//     }
-
-//     // Check supplier existence
-//     const supplierData = await Supplier.findById(supplierId);
-//     if (!supplierData) {
-//       return res.status(404).json({ message: "Supplier not found" });
-//     }
-
-//     const purchaseItems = [];
-
-//     for (const item of items) {
-//       const { product, quantity, purchasePrice, retailPrice, wholesalePrice } =
-//         item;
-
-//       const productData = await Product.findById(product);
-//       if (!productData) {
-//         return res
-//           .status(404)
-//           .json({ message: `Product not found: ${product}` });
-//       }
-
-//       // Update stock and prices
-//       productData.quantity += quantity;
-//       productData.purchasePrice = purchasePrice;
-//       if (retailPrice !== undefined) productData.retailPrice = retailPrice;
-//       if (wholesalePrice !== undefined)
-//         productData.wholesalePrice = wholesalePrice;
-//       await productData.save();
-
-//       purchaseItems.push({
-//         product,
-//         quantity,
-//         purchasePrice,
-//         retailPrice,
-//         wholesalePrice,
-//       });
-
-//       // Create FIFO stock entry
-//       await new PurchaseStock({
-//         product,
-//         purchasePrice,
-//         quantity,
-//         remainingQuantity: quantity,
-//         purchaseDate: new Date(purchaseDate),
-//         retailPrice,
-//         wholesalePrice,
-//       }).save();
-//     }
-    
-
-//     // Final Save
-//     const newPurchase = new Purchase({
-//       supplier,
-//       supplierId,
-//       items: purchaseItems,
-//       total,
-//       discountPercent,
-//       discount,
-//       transportCost: shippingCost,
-//       grandTotal,
-//       paid,
-//       due,
-//       paymentMethod,
-//       status,
-//       dueDate,
-//       purchaseDate,
-//     });
-
-//     await newPurchase.save();
-
-//     res.status(201).json({
-//       message: "Purchase added successfully",
-//       purchase: newPurchase,
-//     });
-//   } catch (error) {
-//     res.status(500).json({
-//       message: "Something went wrong",
-//       error: error.message,
-//     });
-//   }
-// });
+// POST - add a new purchase
 router.post("/add", async (req, res) => {
   try {
     const { Supplier, Product, PurchaseStock, Purchase } = req.models;
 
     const {
       supplierId,
+      supplierName,
       items,
       total,
       discountPercent = 0,
@@ -131,51 +24,55 @@ router.post("/add", async (req, res) => {
       purchaseDate,
     } = req.body;
 
-    // 1️⃣ Basic validation
     if (!supplierId || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: "Invalid purchase data" });
     }
 
-    // 2️⃣ Supplier check
     const supplierData = await Supplier.findById(supplierId);
     if (!supplierData) {
       return res.status(404).json({ message: "Supplier not found" });
     }
 
-    // 3️⃣ Process items
     const purchaseItems = [];
+
     for (const item of items) {
       const { product, quantity, purchasePrice, retailPrice, wholesalePrice } =
         item;
 
-      // Product existence check
-      const productData = await Product.findById(product);
-      if (!productData) {
-        return res
-          .status(404)
-          .json({ message: `Product not found: ${product}` });
+      let productData;
+
+      if (mongoose.Types.ObjectId.isValid(product)) {
+        productData = await Product.findById(product);
       }
 
-      // Update product stock & prices
+      if (!productData) {
+        productData = new Product({
+          productName: product,
+          quantity: 0, // নতুন হলে 0
+          purchasePrice,
+          retailPrice,
+          wholesalePrice,
+        });
+      }
+
       productData.quantity += quantity;
       productData.purchasePrice = purchasePrice;
       if (retailPrice !== undefined) productData.retailPrice = retailPrice;
       if (wholesalePrice !== undefined)
         productData.wholesalePrice = wholesalePrice;
+
       await productData.save();
 
-      // Prepare purchaseItems array
       purchaseItems.push({
-        product,
+        product: productData._id,
         quantity,
         purchasePrice,
         retailPrice,
         wholesalePrice,
       });
 
-      // FIFO stock entry
       await new PurchaseStock({
-        product,
+        product: productData._id,
         purchasePrice,
         quantity,
         remainingQuantity: quantity,
@@ -185,9 +82,9 @@ router.post("/add", async (req, res) => {
       }).save();
     }
 
-    // 4️⃣ Prepare final purchase object
     const newPurchase = new Purchase({
       supplierId,
+      supplierName,
       items: purchaseItems,
       total,
       discountPercent,
@@ -216,6 +113,7 @@ router.post("/add", async (req, res) => {
     });
   }
 });
+
 
 // POST - update a payment
 router.put("/:id/pay", async (req, res) => {

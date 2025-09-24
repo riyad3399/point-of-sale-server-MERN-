@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const StoreSettingSchema = mongoose.Schema(
+const storeSettingSchema =  mongoose.Schema(
   {
     storeName: {
       type: String,
@@ -43,4 +43,4 @@ const StoreSettingSchema = mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = StoreSettingSchema;
+module.exports = storeSettingSchema;

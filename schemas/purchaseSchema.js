@@ -58,6 +58,7 @@ const purchaseSchema = new mongoose.Schema(
       ref: "Supplier",
       required: true,
     },
+    supplierName: { type: String, required: true },
 
     invoiceNumber: { type: Number, unique: true },
 

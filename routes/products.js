@@ -201,7 +201,6 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
     if (updates.alertQuantity !== undefined)
       updates.alertQuantity = parseInt(updates.alertQuantity);
 
-    console.log("🔹 After cleaning:", updates);
 
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
@@ -218,7 +217,6 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
       product: updatedProduct,
     });
   } catch (err) {
-    console.error("Product update error:", err.message);
     res
       .status(500)
       .json({ message: "Failed to update product", error: err.message });

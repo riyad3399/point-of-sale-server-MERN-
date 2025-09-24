@@ -4,7 +4,7 @@ const multer = require("multer");
 const fs = require("fs");
 const router = express.Router();
 
-const uploadFolder = path.join(__dirname, "../uploads"); 
+const uploadFolder = path.join(__dirname, "../uploads");
 
 if (!fs.existsSync(uploadFolder)) {
   fs.mkdirSync(uploadFolder);
