@@ -13,11 +13,10 @@ const purchaseStockSchema = require("../schemas/purchaseStockSchema");
 const counterSchema = require("../schemas/counterSchema");
 const roleSchema = require("../schemas/roleSchema");
 const storeSettingSchema = require("../schemas/storeSettingSchema");
-
+const purchaseReturnSchema = require("../schemas/purchaseReturnSchema");
 const modelCache = {};
 
 const getTenantModels = async (tenantDatabase) => {
-
   if (modelCache[tenantDatabase]) {
     const connection = modelCache[tenantDatabase].connection;
     if (connection.readyState === 1) {
@@ -52,6 +51,9 @@ const getTenantModels = async (tenantDatabase) => {
     Purchase:
       connection.models.Purchase ||
       connection.model("Purchase", purchaseSchema),
+    PurchaseReturn:
+      connection.models.PurchaseReturn ||
+      connection.model("PurchaseReturn", purchaseReturnSchema),
     PurchaseStock:
       connection.models.PurchaseStock ||
       connection.model("PurchaseStock", purchaseStockSchema),
