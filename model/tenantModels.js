@@ -1,5 +1,4 @@
 const { getTenantConnection } = require("../db/connectionManager");
-
 const categorySchema = require("../schemas/categorySchema");
 const userSchema = require("../schemas/userSchema");
 const productSchema = require("../schemas/productSchema");
@@ -13,7 +12,7 @@ const purchaseStockSchema = require("../schemas/purchaseStockSchema");
 const counterSchema = require("../schemas/counterSchema");
 const roleSchema = require("../schemas/roleSchema");
 const storeSettingSchema = require("../schemas/storeSettingSchema");
-const purchaseReturnSchema = require("../schemas/purchaseReturnSchema");
+const purchaseReturnSchema = require("../schemas/PurchaseReturnSchema");
 const modelCache = {};
 
 const getTenantModels = async (tenantDatabase) => {

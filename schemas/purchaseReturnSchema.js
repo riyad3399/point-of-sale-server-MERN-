@@ -16,13 +16,11 @@ const purchaseReturnSchema = new mongoose.Schema(
   {
     purchaseId: {
       type: String,
-      ref: "Purchase",
       required: true,
     },
     invoiceNumber: { type: Number, required: false }, // string or number
     supplierId: {
       type: String,
-      ref: "Supplier",
       required: false,
     },
     supplierName: { type: String, required: false },
@@ -32,9 +30,8 @@ const purchaseReturnSchema = new mongoose.Schema(
     returnDate: { type: Date, required: true, default: Date.now },
     createdBy: {
       type: String,
-      ref: "User",
       required: false,
-    }, // optional
+    }, 
     meta: { type: Object, required: false },
   },
   { timestamps: true }

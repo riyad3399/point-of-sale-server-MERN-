@@ -332,6 +332,151 @@ router.get("/by-supplier/:supplierId", async (req, res) => {
   }
 });
 
+// POST - purchase return
+router.post("/return", async (req, res) => {
+  const { Product, Purchase, PurchaseReturn } = req.models;
+
+  try {
+    const payload = req.body;
+
+    if (!payload.purchaseId)
+      return res.status(400).json({ message: "purchaseId is required" });
+    if (!Array.isArray(payload.items) || payload.items.length === 0)
+      return res.status(400).json({ message: "items are required" });
+
+    const items = payload.items.map((it) => ({
+      productId: it.productId ? String(it.productId) : null,
+      productName: String(it.productName ?? it.name ?? "Unnamed Item"),
+      qty: Number(it.qty ?? 0),
+      price: Number(it.price ?? 0),
+      discount: Number(it.discount ?? 0),
+      lineTotal: Number(it.lineTotal ?? 0),
+    }));
+
+    for (const it of items) {
+      if (!it.qty || it.qty <= 0)
+        return res
+          .status(400)
+          .json({ message: `Invalid qty for "${it.productName}"` });
+    }
+
+    // 🧩 Find Purchase document
+    const purchase = await Purchase.findById(payload.purchaseId);
+    if (!purchase)
+      return res.status(404).json({ message: "Purchase not found" });
+
+    const stockUpdates = [];
+
+    for (const rit of items) {
+      const idx = purchase.items.findIndex(
+        (pi) => String(pi.product) === String(rit.productId)
+      );
+
+      if (idx === -1) {
+        return res.status(400).json({
+          message: `Item "${rit.productName}" not found in purchase`,
+        });
+      }
+
+      const pItem = purchase.items[idx];
+      const purchasedQty = Number(pItem.quantity ?? 0);
+      const returnedQty = Number(pItem.returnedQty ?? 0);
+      const remaining = purchasedQty - returnedQty;
+
+      if (rit.qty > remaining) {
+        return res.status(400).json({
+          message: `Return qty for "${rit.productName}" (${rit.qty}) exceeds remaining (${remaining})`,
+        });
+      }
+
+      pItem.returnedQty = returnedQty + rit.qty;
+      pItem.quantity = purchasedQty - rit.qty; 
+
+      stockUpdates.push({ productId: rit.productId, qty: rit.qty });
+    }
+
+    const prDoc = new PurchaseReturn({
+      purchaseId: payload.purchaseId,
+      invoiceNumber: payload.invoiceNumber ?? "",
+      supplierId: payload.supplierId ?? null,
+      supplierName: payload.supplierName ?? "",
+      items,
+      totalReturnAmount:
+        payload.totalReturnAmount ??
+        items.reduce((sum, it) => sum + (it.lineTotal || it.qty * it.price), 0),
+      reason: payload.reason ?? "",
+      returnDate: payload.returnDate
+        ? new Date(payload.returnDate)
+        : new Date(),
+      createdBy: payload.createdBy ?? "",
+    });
+
+    await purchase.save();
+    const savedReturn = await prDoc.save();
+
+    for (const su of stockUpdates) {
+      await Product.findByIdAndUpdate(
+        su.productId,
+        { $inc: { quantity: -Math.abs(su.qty) } },
+        { new: true }
+      );
+    }
+
+    for (const su of items) {
+      await Purchase.findByIdAndUpdate(
+        su.product,
+        { $inc: { quantity: -Math.abs(su.qty) } },
+        { new: true }
+      );
+    }
+
+    res.status(201).json({
+      message: "Purchase return created successfully",
+      data: savedReturn,
+    });
+  } catch (err) {
+    console.error(" Error creating purchase return:", err);
+    res.status(500).json({
+      message: err.message || "Server error",
+      error: err.stack,
+    });
+  }
+});
+
+// GET /return
+router.get("/return-list", async (req, res) => {
+  const { PurchaseReturn } = req.models;
+
+  try {
+    const returns = await PurchaseReturn.find(
+      {},
+      {
+        returnDate: 1,
+        invoiceNumber: 1,
+        supplierName: 1,
+        totalReturnAmount: 1,
+        _id: 1,
+      }
+    )
+      .sort({ returnDate: -1 })
+      .lean();
+
+    res.status(200).json({
+      message: "Purchase return summary fetched successfully",
+      count: returns.length,
+      data: returns,
+    });
+  } catch (err) {
+    console.error("Error fetching purchase returns:", err);
+    res.status(500).json({
+      message: err.message || "Server error",
+      error: err.stack || err,
+    });
+  }
+});
+
+
+
 // GET - single purchase
 router.get("/:id", async (req, res) => {
   const { id } = req.params;
@@ -356,123 +501,6 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-// POST - purchase return
-router.post("/return", async (req, res) => {
-  const { Product, Purchase, PurchaseReturn } = req.models;
 
-  try {
-    const payload = req.body;
-
-    // 🧩 Validation
-    if (!payload.purchaseId)
-      return res.status(400).json({ message: "purchaseId is required" });
-    if (!Array.isArray(payload.items) || payload.items.length === 0)
-      return res.status(400).json({ message: "items are required" });
-
-    // 🧩 Normalize items
-    const items = payload.items.map((it) => ({
-      productId: it.productId ? String(it.productId) : null,
-      productName: String(it.productName ?? it.name ?? "Unnamed Item"),
-      qty: Number(it.qty ?? 0),
-      price: Number(it.price ?? 0),
-      discount: Number(it.discount ?? 0),
-      lineTotal: Number(it.lineTotal ?? 0),
-    }));
-
-    // 🧩 Validate quantities
-    for (const it of items) {
-      if (!it.qty || it.qty <= 0)
-        return res
-          .status(400)
-          .json({ message: `Invalid qty for "${it.productName}"` });
-    }
-
-    // 🧩 Find Purchase document
-    const purchase = await Purchase.findById(payload.purchaseId);
-    if (!purchase)
-      return res.status(404).json({ message: "Purchase not found" });
-
-    const stockUpdates = [];
-
-    // 🧩 Match & update purchase items
-    for (const rit of items) {
-      const idx = purchase.items.findIndex(
-        (pi) => String(pi.product) === String(rit.productId)
-      );
-
-      if (idx === -1) {
-        return res.status(400).json({
-          message: `Item "${rit.productName}" not found in purchase`,
-        });
-      }
-
-      const pItem = purchase.items[idx];
-      const purchasedQty = Number(pItem.quantity ?? 0);
-      const returnedQty = Number(pItem.returnedQty ?? 0);
-      const remaining = purchasedQty - returnedQty;
-
-      if (rit.qty > remaining) {
-        return res.status(400).json({
-          message: `Return qty for "${rit.productName}" (${rit.qty}) exceeds remaining (${remaining})`,
-        });
-      }
-
-      // 🧩 Update purchase item fields
-      pItem.returnedQty = returnedQty + rit.qty;
-      pItem.quantity = purchasedQty - rit.qty; // ❗ Decrease purchase quantity too
-
-      stockUpdates.push({ productId: rit.productId, qty: rit.qty });
-    }
-
-    // 🧩 Save PurchaseReturn document
-    const prDoc = new PurchaseReturn({
-      purchaseId: payload.purchaseId,
-      invoiceNumber: payload.invoiceNumber ?? "",
-      supplierId: payload.supplierId ?? null,
-      supplierName: payload.supplierName ?? "",
-      items,
-      totalReturnAmount:
-        payload.totalReturnAmount ??
-        items.reduce((sum, it) => sum + (it.lineTotal || it.qty * it.price), 0),
-      reason: payload.reason ?? "",
-      returnDate: payload.returnDate
-        ? new Date(payload.returnDate)
-        : new Date(),
-      createdBy: payload.createdBy ?? "",
-    });
-
-    // 🧩 Save both
-    await purchase.save();
-    const savedReturn = await prDoc.save();
-
-    // 🧩 Update Product stock (decrease)
-    for (const su of stockUpdates) {
-      await Product.findByIdAndUpdate(
-        su.productId,
-        { $inc: { quantity: -Math.abs(su.qty) } },
-        { new: true }
-      );
-    }
-
-    for (const su of items) {
-      await Purchase.findByIdAndUpdate(
-        su.product,
-        { $inc: { quantity: -Math.abs(su.qty) } },
-        { new: true }
-      );
-    }
-
-    res.status(201).json({
-      message: "Purchase return created successfully",
-      data: savedReturn,
-    });
-  } catch (err) {
-    console.error("❌ Error creating purchase return:", err);
-    res.status(500).json({
-      message: err.message || "Server error",
-      error: err.stack,
-    });
-  }
-});
 
 module.exports = router;
