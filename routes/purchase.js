@@ -476,6 +476,35 @@ router.get("/return-list", async (req, res) => {
 });
 
 
+// GET - single return list
+router.get("/return-list/:id", async (req, res) => {
+  const { PurchaseReturn } = req.models;
+  const { id } = req.params;
+
+  try {
+    const purchaseReturn = await PurchaseReturn.findById(id).lean();
+
+    if (!purchaseReturn) {
+      return res.status(404).json({
+        message: "Purchase return not found",
+      });
+    }
+
+    res.status(200).json({
+      message: "Purchase return fetched successfully",
+      data: purchaseReturn,
+    });
+  } catch (err) {
+    console.error("Error fetching purchase return:", err);
+    res.status(500).json({
+      message: err.message || "Server error",
+      error: err.stack || err,
+    });
+  }
+});
+
+
+
 
 // GET - single purchase
 router.get("/:id", async (req, res) => {
