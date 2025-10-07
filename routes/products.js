@@ -201,7 +201,6 @@ router.patch("/:id", upload.single("photo"), async (req, res) => {
     if (updates.alertQuantity !== undefined)
       updates.alertQuantity = parseInt(updates.alertQuantity);
 
-
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
       { $set: updates },
@@ -271,19 +270,6 @@ router.get("/", async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to fetch products with FIFO stock" });
-  }
-});
-
-// GET - single product
-router.get("/:id", async (req, res) => {
-  try {
-    const { Product } = req.models;
-
-    const id = req.params.id;
-    const product = await Product.findOne({ _id: id });
-    res.status(200).json(product);
-  } catch (err) {
-    console.log(err);
   }
 });
 
@@ -396,5 +382,17 @@ router.post("/upload-csv", uploadCsv.single("csv"), async (req, res) => {
   }
 });
 
+// GET - single product
+router.get("/:id", async (req, res) => {
+  try {
+    const { Product } = req.models;
+
+    const id = req.params.id;
+    const product = await Product.findOne({ _id: id });
+    res.status(200).json(product);
+  } catch (err) {
+    console.log(err);
+  }
+});
 
 module.exports = router;
