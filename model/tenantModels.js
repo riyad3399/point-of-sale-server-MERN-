@@ -12,7 +12,7 @@ const purchaseStockSchema = require("../schemas/purchaseStockSchema");
 const counterSchema = require("../schemas/counterSchema");
 const roleSchema = require("../schemas/roleSchema");
 const storeSettingSchema = require("../schemas/storeSettingSchema");
-const purchaseReturnSchema = require("../schemas/PurchaseReturnSchema");
+const purchaseReturnSchema = require("../schemas/purchaseReturnSchema");
 const modelCache = {};
 
 const getTenantModels = async (tenantDatabase) => {
