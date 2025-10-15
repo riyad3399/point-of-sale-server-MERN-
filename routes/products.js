@@ -5,18 +5,18 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 
-const generateUniqueCode = async (Product) => {
-  let code;
-  let exists = true;
+// const generateUniqueCode = async (Product) => {
+//   let code;
+//   let exists = true;
 
-  while (exists) {
-    code = Math.floor(100000 + Math.random() * 900000).toString();
-    const product = await Product.findOne({ productCode: code });
-    if (!product) exists = false;
-  }
+//   while (exists) {
+//     code = Math.floor(100000 + Math.random() * 900000).toString();
+//     const product = await Product.findOne({ productCode: code });
+//     if (!product) exists = false;
+//   }
 
-  return code;
-};
+//   return code;
+// };
 
 // Storage for CSV files (on disk)
 const storageCsv = multer.diskStorage({
@@ -63,7 +63,8 @@ router.post("/", upload.single("photo"), async (req, res) => {
 
     let {
       productName,
-      sku,
+      barcode,
+      barcodeType,
       category,
       brand,
       purchasePrice,
@@ -79,21 +80,16 @@ router.post("/", upload.single("photo"), async (req, res) => {
       description,
     } = req.body;
 
-    const photo = req.file
-      ? `/uploads/${req.file.filename}`
-      : "https://yourcdn.com/default.png";
+    console.log("incoming body:", req.body);
 
-    purchasePrice = isNaN(parseFloat(purchasePrice))
-      ? 0
-      : parseFloat(purchasePrice);
+    const photo = req.file ? `/uploads/${req.file.filename}` : "https://yourcdn.com/default.png";
+
+    // normalize numeric fields
+    purchasePrice = isNaN(parseFloat(purchasePrice)) ? 0 : parseFloat(purchasePrice);
     retailPrice = isNaN(parseFloat(retailPrice)) ? 0 : parseFloat(retailPrice);
-    wholesalePrice = isNaN(parseFloat(wholesalePrice))
-      ? 0
-      : parseFloat(wholesalePrice);
-    quantity = isNaN(parseInt(quantity)) ? 0 : parseInt(quantity);
-    alertQuantity = isNaN(parseInt(alertQuantity))
-      ? 0
-      : parseInt(alertQuantity);
+    wholesalePrice = isNaN(parseFloat(wholesalePrice)) ? 0 : parseFloat(wholesalePrice);
+    quantity = isNaN(parseInt(quantity)) ? 0 : parseInt(quantity, 10);
+    alertQuantity = isNaN(parseInt(alertQuantity)) ? 0 : parseInt(alertQuantity, 10);
     tax = isNaN(parseFloat(tax)) ? 0 : parseFloat(tax);
 
     const validUnits = ["pcs", "kg", "ltr"];
@@ -106,9 +102,80 @@ router.post("/", upload.single("photo"), async (req, res) => {
       taxType = "inclusive";
     }
 
+    // ---------- helper functions ----------
+    const randomDigits = (len) =>
+      Array.from({ length: len }, () => Math.floor(Math.random() * 10)).join("");
+
+    // compute mod10 checksum used by EAN/UPC (reverse-weight method)
+    const computeMod10Checksum = (dataDigits) => {
+      const digits = dataDigits.split("").map((d) => parseInt(d, 10)).reverse();
+      let sum = 0;
+      for (let i = 0; i < digits.length; i++) {
+        sum += digits[i] * (i % 2 === 0 ? 3 : 1);
+      }
+      const checksum = (10 - (sum % 10)) % 10;
+      return String(checksum);
+    };
+
+    const generateBarcodeByType = (type) => {
+      const t = (type || "").toLowerCase();
+      if (t === "ean-13" || t === "ean13") {
+        const d12 = randomDigits(12);
+        return d12 + computeMod10Checksum(d12);
+      }
+      if (t === "ean-8" || t === "ean8") {
+        const d7 = randomDigits(7);
+        return d7 + computeMod10Checksum(d7);
+      }
+      if (t === "upc-a" || t === "upca" || t === "upc") {
+        const d11 = randomDigits(11);
+        return d11 + computeMod10Checksum(d11);
+      }
+      if (t === "code-39" || t === "code39") {
+        // simple alphanumeric token suitable for Code39 (keeps it human-readable)
+        return `C39-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      }
+      if (t === "code-128" || t === "code128") {
+        return `C128-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
+      }
+      // fallback
+      return `${Date.now()}${randomDigits(3)}`;
+    };
+
+    // try to generate a unique barcode (max attempts)
+    const generateUniqueBarcode = async (type, attempts = 8) => {
+      for (let i = 0; i < attempts; i++) {
+        const candidate = generateBarcodeByType(type);
+        // ensure candidate is string
+        const exists = await Product.findOne({ barcode: String(candidate) }).lean();
+        if (!exists) return String(candidate);
+      }
+      throw new Error("Unable to generate unique barcode after multiple attempts");
+    };
+    // -------------------------------------
+
+    // If client sent barcode equal to a "type token" (e.g. "upc-a"), generate one on server
+    const typeTokens = ["upc-a", "ean-13", "ean-8", "code-39", "code-128"];
+    if (typeTokens.includes(String(barcode).toLowerCase())) {
+      barcode = await generateUniqueBarcode(String(barcode).toLowerCase());
+    } else {
+      // if user provided a custom barcode value, ensure it's unique
+      if (barcode) {
+        const found = await Product.findOne({ barcode: String(barcode) }).lean();
+        if (found) {
+          return res.status(409).json({ message: "Provided barcode already exists. Choose another or let the server generate one." });
+        }
+      } else {
+        // no barcode provided — generate a sensible default (Code128-like)
+        barcode = await generateUniqueBarcode("code-128");
+      }
+    }
+
+    // Build product document
     const product = new Product({
       productName,
-      productCode: sku,
+      barcode: String(barcode),
+      barcodeType,
       category,
       brand,
       purchasePrice,
@@ -121,7 +188,7 @@ router.post("/", upload.single("photo"), async (req, res) => {
       taxType,
       color,
       size,
-      Description: description || "no description",
+      description: description || "no description",
       photo,
     });
 
@@ -140,12 +207,13 @@ router.post("/", upload.single("photo"), async (req, res) => {
 
     await initialStock.save();
 
-    res.status(201).json(savedProduct);
+    return res.status(201).json(savedProduct);
   } catch (error) {
-    console.error("Product creation error:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Product creation error:", error);
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 });
+
 
 // DELETE - A product
 router.delete("/:id", async (req, res) => {
